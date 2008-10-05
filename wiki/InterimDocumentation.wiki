@@ -1,0 +1,427 @@
+#summary Interim documentation, Oct. 5, 2008
+
+This document describes NClosEmacs, a tentative implementation of the NClose rules engine in ELisp for embedding expert system functionality in the Emacs environment.
+
+In addition, this implementation is experimental in that it investigates the use of ''modern'' programming approaches in this new implementation, most of which were only budding when NClose itself was designed in the early eighties.
+
+As such, it is still with a certain pride, after all these years, that I qualify the following work as research in progress.
+
+== Introduction and historical background ==
+
+NClose is an original evaluation algorithm designed for research on rule-based systems, with which specific domain applications in Medicine were explored in the mid-eighties, at the Robotics Institute, Carnegie-Mellon University.
+
+At that time NClose emerged as a first result in an effort to pursue the development of computer programs capable of displaying (hopefully) intelligent problem-solving behaviour. This approach to Artificial Intelligence was unsurprisingly inspired from the prevalent school of thought at CMU led by Allen Newell and Herbert Simon. Work by Newell, [http://www.aaai.org/aitopics/assets/PDF/AIMag02-02-001.pdf The Knowledge Level] in particular, but research at MIT driven by Pete Szolovits, [http://groups.csail.mit.edu/medg/people/psz/ftp/AIM82/ Artificial Intelligence in Medicine], for instance, and at Stanford with authors such as Buchanan, Feigenbaum, Shortliffe and Fagan also proved inspirational, specifically in relation to domain applications.
+
+A second angle which drove these early research effort was the realisation that "rules" or "productions" could be envisioned as both representing ''computation'' elements, within a computer science perspective, and ''knowledge'' units, in the larger cognitive sciences framework which was budding from AI research at the time. This duality of views in itself provided an exploratory bridge between computing processes and cognitive behaviour which, with the upcoming availability of PCs and graphical user interfaces, readily lent itself to an experimental mode of research.
+
+From the late eighties to the late nineties, this experimental mode would morph into more implementation-oriented work, culminating in the very successful releases of a series of commercial tools and environments at the front edge of the then nascent major trends in an emerging software industry: graphical user interfaces and object-oriented programming languages, which are both now firmly established as our common base infrastructure.
+
+Over time several implementations of the base NClose algorithm were developed in various programming languages including LISP (MacLisp, LeLisp, and ZetaLisp chiefly), and later Pascal, C and C++. NClose evaluation constituted the core of the rule engine found in the commercial products Nexpert, and Nexpert Object, released by Neuron Data from 1985 onward.
+
+== NClose in Emacs ==
+
+This package contains a preliminary implementation of NClose in ELisp, the dialect of the Lisp programming language used in both GNU Emacs and XEmacs (collectively called Emacs in this document). Users of Emacs commonly write ELisp code to extend and to customize Emacs as they require.
+
+This document does not dwell on the NClose algorithm itself, a formal description of which can be found in [http://www.ri.cmu.edu/pubs/pub_77.html Rappaport and Chauvet, 1984], and rather focuses on several facets of its implementation in ELisp, with emphasis on the experimental approach to this revisited development.
+
+This implementation departs from the somewhat older implementations in early pre-Common Lisp dialects (namely MacLisp and ZetaLisp) which was leveraged in our AI research work. In particular, ELisp offers "advising functions" which are useful for Aspect Oriented Programming (AOP). AOP, which originated with Gregor Kiczales at Xerox PARC, helps programmers separate so-called cross-cutting concerns, i.e. functionality which has an impact on all the functions of a program, from the program code itself. (Logging is the traditional example of a cross-cutting concern.) The AOP flavor provided by advising functions in Emacs prompted revisiting the NClose algorithm with an eye towards proper identification of cross-cutting concerns.
+
+Another revision of the original design ideas behind NClose was deemed necessary as Emacs is, for all purposes of this implementation, the unique communication channel with the end-user. As one of the distinguishing features of NClose, and the ensuing Nexpert implementations and commercial products, is precisely its handling of user interactions, the embedding into Emacs both restricted and enhanced what we used to implement in windowing environments and graphical user interfaces. Living in Emacs, text naturally becomes the primary user interface through which commands are issued and knowledge bases loaded and run. Special buffers play roles otherwise devolved to windows or menus in previous implementations. New usages may be envisioned where knowledge-driven problem solving seamlessly blends into text documents produced by the user.
+
+The following sections provide an overview of the design options selected in the current NClosEmacs implementation.
+
+=== ELisp Implementation ===
+
+The main implementation file is {{{nclose.el}}}. It loads the various ELisp files required, installs a new major mode for NClose rule bases and inits the rules engine.
+
+Each large functional chunk is implemented in its own ELisp file named somewhat after its main role in the NClose algorithm. More detailed explanations may be found in @xref{Implementation}.
+
+NClosEmacs relies on the ELisp evaluator for its rules evaluation engine. Each piece of data in the left- and right-hand sides of rules, usually called ''signs'', ''variables'' or simply ''data'' in the rest of the document, and each ''hypothesis'' is actually implemented as an ELisp symbol. This means that the value of a sign is obtained by typing its name at the top level Lisp listener. For instance: {{{ACETATE-CYPROTERONE}}} and {{{(eval \'ACETATE-CYPROTERONE)}}} both return the value of the sign ACETATE-CYPROTERONE. Unknown signs are simply unbound ELisp symbols.
+
+Another nice consequence of the reuse of the evaluator is that conditions patterns in left-hand sides may be expressed directly in Lisp. Similarly actions in the righ-hand sides may use Lisp functions directly. Pattern evaluation uses the error signalling mechanism of ELisp to trigger backward chaining if the unbound sign encountered is in fact an hypothesis, or a question to the user if simply a sign. In {{{unify.el}}} the basic LHS evaluation is as follows:
+
+{{{
+ (defun nclose-get-unification (pattern)
+   "Interactive unification of pattern"
+   (condition-case error
+       (eval pattern)
+     (void-variable
+      (sign-writer (cadr error) (sign-reader (cadr error)))
+      ;; Recurse
+      (nclose-get-unification pattern)
+     )
+     )
+ )
+}}}
+
+The idea is that when the (Lisp) evaluation of the pattern fails on an unbound symbol, the error catching mechanism considers it as an unknown sign or hypothesis and accordingly assigns a value read possibly interactively, and retries. This process recursively evaluates all required signs in the LHS to produce the final unification result, here a true or false value.
+
+The {{{sign-writer}}} and {{{sign-reader}}} high level getter/setter functions for signs are separately coded as they may be advised in order to implement side-effects.
+
+Similarly a rule RHS is passed to the Lisp evaluator for execution with the sequence of Lisp forms implicitly and-ed, as in:
+
+{{{ 
+ (defun and-eval-rhs (rhs)
+   "Recursively execute the sequential execution of RHS forms"
+ 
+   (cond
+    ((null rhs) t)
+    (t (and (eval (car rhs)) (and-eval-rhs (cdr rhs))))
+    )
+ )
+}}}
+
+This works provided all RHS operators are pre-defined to call the advised functions if necessary. This is in particular the case for the ubiquitous {{{@SET}}} operator which expects exactly a sign as its first argument and a value as the second argument. In the file {{{rhs.el}}}, this operator, for instance, is implemented as a Lisp macro:
+
+{{{
+ (defmacro @set (var val)
+   "External RHS assignment operator"
+   (progn (sign-writer var (nclose-get-unification val)) t)
+ )
+ }}}
+
+This example implementation of a RHS operator shows the important features to keep in mind. Execution indeed returns a boolean value; remember the implicit and in the sequence of RHS forms execution. Returning {{{nil}}} would stop further execution of the RHS. (This crude control mechanism could be useful to an advising function for instance.)
+
+The RHS value assignment itself is a two-step process: the value is computed, which may entail asking the user for input, hence the call to the generic {{{nclose-get-unification}}} evaluation/unification function also used in LHS patterns evaluation; and then it is assigned to the said sign through the standard setter, which as previously mentioned may itself be advised.
+
+Other domain-specific operators may be developed by following the same simple design method. An interesting possibility is, of course, to call Emacs\' text and buffer functions from the RHS of NClose rules, opening up a whole scope of applications with text documents co-produced, in form or content or both, by the user and a rule-based expert system.
+
+=== Aspect Oriented Programming ===
+
+The experimental part of this new implementation of NClose relies on using Aspect Oriented Programming ideas, and more specifically a recent evolution known as [\"http://www.swa.hpi.uni-postdam.de/cop/\" Context Oriented Programming], where different cross-cutting concerns are implemented in ''layers'' separately activated as needed.
+
+Although not all features of NClose were yet reviewed for this version of the implementation, at least two were immediately identified as appropriate candidates for an AOP approach:
+
+* Gating: the core NClose forward chaining process
+* Logging: keeping a trace of the expert system session execution
+
+The "gating" process in NClose is a form of forward chaining, going from known signs or data to hypotheses. In contrast to RETE-like implementations where individual conditions in separate rules are compiled into a automate network, with known data acting as tokens moving from one vertex to another as they match the condition node, the somewhat simpler implementation in NClose uses a "gate", which, when a sign becomes known, decides which hypotheses should be posted for later evaluation.
+
+In order to implement gating, a gating-layer is created as a series of advising functions in ELisp. Given that the core backward chaining is implemented through an agenda, a last-in first-out stack of hypotheses posted for evaluation in bacward chaining mode, the gating-layer addresses concerns:
+
+* initialization time, for the setup of the data structures responsible for handling gating;
+* rule compilation, to handle dependencies between hypotheses and signs discovered when parsing LHSes;
+* execution time, each time a value is assigned to a piece of data, i.e. when it becomes known.
+
+The layer is hence implemented as three advising functions, gathered with other layers in the {{{advice.el}}} file. The following advising function, for instance:
+
+{{{ 
+ (defadvice sign-compile (after gating-layer (sign hypo))
+   "Builds the forward association list, hypo is nil when RHS are compiled"
+   (if hypo (plist-push sign hypo))
+ )
+ }}}
+
+advises the {{{sign-compile}}} function, called at rule compilation time, and adds the rule\'s hypothesis to the parsed sign forward association list. This forward association list is later used, at runtime, to push hypotheses on the agenda when signs become known.
+
+In order to implement a minimal logging facility, another layer is implemented in {{{advice.el}}}. The functions in this layer simply advise all of the interactive command functions, keeping track of all interactions with the user, as well as the evaluation functions, keeping trace of the expert system\'s deductions as the session progresses. These traces are stored in a special Emacs buffer named {{{<nowiki>*nclose-log*</nowiki>}}} and addressable through the usual set of Emacs buffer commands.
+
+Advising functions are enabled and activated by default in the same file:
+
+ {{{
+ ;; Enable/Disable layers as required
+ (ad-enable-regexp "gating-layer")
+ (ad-enable-regexp "log-layer")
+ 
+ ;; Activate advising functions
+ (ad-activate-regexp "gating-layer")
+ (ad-activate-regexp "log-layer")
+ }}}
+
+other variations are of course possible, since Emacs\' advising functions may be enabled and disabled using regexp patterns rather than names.
+
+=== Front End ===
+
+The front-end of this NClose implementation is unsurprisingly text-oriented and well-integrated with Emacs. The purpose of the default front-end is to assist in the authoring and running of rule bases from within Emacs.
+
+The NClose rules engine is manually loaded by issuing the standard Emacs command {{{M-x load-file}}} on the master NClose {{{nclose.el}}} file (with the .elc extension if it has been compiled at installation). This may also be placed in the {{{.emacs}}} initialization file.
+
+The rule base itself is a text document edited in a standard Emacs buffer. @xref{Authoring Knowledge Bases}, for the actual syntax of rules declarations. The user "loads" a rule base in memory simply by evaluating the buffer containing its text, the {{{M-x eval-current-buffer}}} in Emacs.
+
+NClose provides a number of commands, implemented as interactive ELisp functions invoked through the usual {{{M-x}}} prefix to setup and run an expert session. In addition, traces and execution logs may be provided in NClose-specific buffers such as {{{<nowiki>*nclose-log*</nowiki>}}}.
+
+The {{{nclose.el}}} file also provides a minimal major mode for text-based rule bases. At this stage, the major mode is only concerned with highlighting the inference process as it progresses through the rule base. Hypotheses under evaluation are highlighted as they are pushed and popped from the agenda; their final status, true or false, is color-coded. NClose keywords are also font-locked for easier readability. (The NClose major mode is still pretty much experimental and additional features may be added as the implementation is revised.)
+
+== Authoring Knowledge Bases ==
+
+Rule bases for NClose are simple text documents which can be edited in Emacs. These rule base text documents follow the Lisp syntax conventions, and more specifically the ELisp conventions. Comments lines begin with the {{{<nowiki>;</nowiki>}}} character. The body of the rule base is constituted of well-balanced Lisp forms, one for each rule in the knowledge base.
+
+=== Writing rules ===
+
+NClose provides a high-level Lisp macro to declare a rule.
+
+{{{ 
+ (add-to-kb
+   (@LHS= *pattern-lisp-form*)
+   (@hypo *hypothesis*)
+   [(@RHS= [*RHS-lisp-form*]+) *string-documentation*]
+ )
+}}}
+
+The macro parses four arguments, the last two being optional:
+
+* ''pattern-lisp-form'' is a lisp form expressing a boolean computation with an ultimate true/false value. It usually is an AND/OR tree of several elementary conditions involving any of the standard Lisp functions, namely: {{{(string= < > = /= >= <= + - * / and or not null yes no Yes No)}}}. Any other symbol in the pattern is considered as sign and compiled as such by the rule compiler.
+* ''hypothesis'' is the hypothesis for the rule.
+* Optionally, ''RHS-lisp-form'' is one of possibly several right-hand side actions. Currently the only NClose specific RHS action is the {{{(@SET *sign* *expression*)}}} operator used to assign a value (''expression'') to a sign. Other Lisp functions in a RHS action are passed without modification to the Lisp evaluator.
+* ''string-documentation'' is an optional textual description attached to the rule.
+
+For instance the following are examples or well-formed, if meaningful, rules:
+
+ {{{
+ (add-to-kb (@LHS= (and (> a 2) (string= foo "hello"))) (@hypo H3)
+ 	(@RHS= (@set frob (* 2 a)) (@set boz "test")) "Another
+ comment")
+ 
+ (add-to-kb (@if (> boz 0)) (@hypo H3))
+ 
+ (add-to-kb (@if (and (> a c) (< (* d 5) 10))) (@hypo H2)
+ 	nil "Commenting this H2 rule")
+ }}}
+
+=== Designing classes and objects ===
+
+Still an area of research and experimental implementation work.
+
+The introduction of a simple yet rich object system in Nexpert was the major transition between the original version and the later Nexpert Object. This transition happened as early as 1986-87, at a time when object-oriented programming languages were beginning to vie for developers\' attention and frame-based and object systems were still an active area of AI research.
+
+While object-oriented languages became mainstream, object systems faded from the common AI study only to find renewed attention in so-called ''middleware'', with COM/DCOM from Microsoft and the Object Management Group\'s Corba/IIOP specifications being the major industry beacons during the early nineties. Although these were somewhat superseded later on in the decade by the emergence of Web protocols-based middleware using XML (SOAP/WSDL and the plethora of WS- specifications) they played role model in the development of the Web Service stack.
+
+Today, with the Semantic Web initiative at the W3C—albeit making slow progress in industry adoption—object systems are again under active study and development. The crux of the on-going Semantic Web matter lies in the definition and use-cases of ''ontologies''. Proposals differ on the expressivity of ontology specifications, on their actual representation, and on their articulation with deductive systems of various kinds—mostly based on first-order logic. Two important ontology systems in broad use today are the W3C-promoted RDF/OWL and Topic Maps. Another unrelated initiative, dubbed ''microformats'', is more interested in in-page data formatting for automated collection and analysis.
+
+==== The NClosEmacs articulation between rule and object systems ====
+
+The important innovation in the transition from Nexpert to Nexpert Object was in the elegant articulation between the rule and the object systems. On the one hand the object system supported ''classes'', defined as collections of ''properties'', and inheritance along two relations: ''subClassOf'' and ''instanceOf'', respectively from class to class(es) and from class to object(s). A third relation, from object to object(s), defined as ''partOf'', allowed two hierarchies (class to subclasses with objects as leaves, and object to subobjects) to mingle in Nexpert ontologies.
+
+The system was designed as quite dynamic in nature and weakly reinforced hierarchical relations, in contrast to object-oriented programming languages—and more in par with the then AI-style, and now Semantic Web research. Objects could sport additional properties to the set of inherited ones; exceptions in default inheritance mechanisms could be provided; objects could be moved from class to class; objects could be created by rules\' RHS actions, and so forth.
+
+The articulation between rules and objects basically enabled LHS of rules to query the object system for a set of subsets of objects matching simple patterns and RHS to act upon this set of subsets. The syntax for expressing patterns was very compact and represented classes as set of their instances, and objects as sets of their subobjects with LHS patterns being either set operations such as membership or intersections, or scalar typed tests on properties.
+
+In the NClosEmacs proposed implementation we are trying to abstract out simple design principles from the original ideas in Nexpert Object to layer an object system over the NClose rule engine.
+
+* The "static" part of the object system, the base ontology, should minimally provide classes and objects with two hierarchical relations (namely class/subclass and object/subobject, usually specialization and mereological). Inheritance mechanisms is an overlay on the object system ontology.
+* The "dynamic" part of the object system, is the definition of the query language (patterns) used in rules LHSes and the object-related operations in the rules RHSes.
+
+Note that, in addition, the unification step should now collect set of subsets of objects, or list of ''scopes'', to be passed from the LHS to the RHS.
+
+In the vein of contemporary systems we are interested in using NClosEmacs knowledge-based applications on modern ontology representations. So we plan again to separate concerns and provide for different ontology representations together with an abstract API for user-defined ontology representations—which may be required for domain-specific applications, e.g. health/medicine applications.
+
+NClosEmacs comes with three ontology modules:
+
+* A default ontology with no inheritance which relies heavily on the underlying Lisp evaluator and specifically on atom property lists,
+* An ontology representation based on [\"http://www.w3.org/TR/owl-features/\" OWL-Lite] where classes and objects are described using the OWL-Lite conventions,
+* An ontology representation based on [\"http://www.topicmaps.org\" Topic Maps] where classes and objects of NClosEmacs are represented as such.
+
+Both OWL-Lite and XTM (Topic Maps) ontology representations offer a much more expressive environment for ontologies than the original Nexpert Object object system. The current implementation is only a basis for further research work inasmuch as the minimal feature set for NClosEmacs was imported from OWL-Lite and Topic Maps and augmenting the pattern/action language to leverage their additional expressive power constitute an open area for further research. (The implementation could use Emacs advising functions, for instance.)
+
+==== The Default Object System in NClosEmacs ====
+
+To be supplied.
+
+==== The OWL-Lite Object System in NClosEmacs ====
+
+To be supplied.
+
+==== The Topic Maps Object System in NClosEmacs ====
+
+In the current version the XTM ontology representation is not yet available.
+
+==== Implementation considerations ====
+
+* Role of scalar variables is not redefined: X versus X.value or System.X
+* OWL-Lite, XTM, and future user-defined ontology representations share a common layer in \'ontology.el\'
+* Persistence is not addressed in the current implementation
+* Issues of volume
+
+== Running a session ==
+
+The first step is to load the NClosEmacs engine (from Emacs) by issuing the command {{{M-x load-file nclose.el}}}. This basically loads the core engine and initializes it for the current Emacs session.
+
+The preferred way to run an expert session in NClose is to open the rule base text in a new Emacs buffer and evaluate its content with the usual interactive Lisp command {{{M-x eval-current-buffer}}}. This command compiles the rule base and sets up the rule interpreter for a new session.
+
+A complete expert system session is usually a three-step affair once the appropriate rule base has been loaded. There is an initial volunteering/suggesting phase where the user is expected to either volunteer some initially known data or focus on one or several hypotheses of interest (or both). The rule interpreter is actually started with the interactive ''knowcess'' command which triggers interactive evaluation of relevant rules. Once this second phase terminates, log traces and various data exploratory commands are provided to investigate answers and results reached by the inference engine. Other commands are available to restart a session or to reinitialize the engine altogether.
+
+=== Interactive volunteering and suggesting ===
+
+@dfn{Suggesting} is the process through which an hypothesis is posted on the agenda for evaluation. The rule interpreter evaluates an hypothesis by collection all rules leading to the selected hypothesis and evaluating them in a backward-chaining mode.
+
+Note that, in contrast to rules engines like RETE, all rules sharing the same hypothesis are evaluated and implicitly or-ed to find the boolean value of the said hypothesis. In the default implementation the order in which these rules are evaluated is left undefined. Of course, the backward-chaining evaluation function could be advised should a specific sequencing of the rules or a lazy evaluation be required for a particular domain application.
+
+; '''nclose-suggest'''
+: This function is invoked with {{{M-x nclose-suggest}}} to suggest an hypothesis. It works with the Emacs completion mechanism so that the usual {{{? TAB SPC}}} special characters may be used to select the hypothesis to suggest.
+
+@dfn{Volunteering} is the process through with a known piece of data is volunteered to the NClose engine, usually before running an interactive session.
+
+; '''nclose-volunteer'''
+: This function is invoked with {{{M-x nclose-volunteer}}} to volunteer the value of a sign. The user is prompted for the sign first (with standard Emacs completion available) and then for the value.
+
+Several suggest and volunteer commands may be issued before running a session to provide initial information to the expert system.
+
+=== Knowcessing restarting and reinitializing sessions ===
+
+@dfn{Knowcessing} a contraction of ''knowledge processing'' denotes the process of running an interactive expert system session with NClosEmacs. Once the initial suggest and volunteer phase is completed, the rule interpreter is started with the {{{knowcess}}} command. User interactions happen in the mini-buffer as the inference process might need to prompt the user for information.
+
+; '''nclose-knowcess'''
+: This interactive command invoked with {{{M-x nclose-knowcess}}} without argument.
+
+When a question is asked to the user, interactions happen in the mini-buffer; the session may be aborted by typing {{{C-g}}}.
+
+The expert system session may be restarted at the end of the knowcess phase with the following command:
+
+; '''nclose-reset-session'''
+: This interactive command invoked with {{{M-x nclose-reset-session}}} restarts the expert system session, setting all signs back to unknown status and emtying the agenda.
+; '''nclose-reset-globales'''
+: This interactive command invoked with {{{M-x nclose-reset-globales}}} without arguments reinitializes the rules engine. In particular, all currently loaded rule bases are deleted from the production memory.
+
+There is also a less frequently used function:
+
+; '''nclose-reset-signs'''
+: This interactive command invoked with {{{M-x nclose-reset-signs}}} unbinds all previously known signs.
+
+=== Encyclopaedia ===
+
+The current implementation provides only a few functions to pretty-print the list of signs and hypotheses with their values. Gathered under the exaggerated headline of "Encyclopaedia" these functions are as follows:
+
+; '''nclose-print-wm'''
+: This interactive command which is invoked with {{{M-x nclose-print-wm}}} inserts a table of signs and their values at the cursor position.
+; '''nclose-print-hypos'''
+: This interactive command which is invoked with {{{M-x nclose-print-wm}}} inserts a table of hypotheses and their values at the cursor position.
+
+=== Session logs ===
+
+A complete session log is maintained in a special Emacs buffer named {{{<nowiki>*nclose-log*</nowiki>}}}. This buffer keeps track of the inference progress from the initial knowcess command. The buffer is erased with each reset session command issued by the user.
+
+Note that logging is implemented as a specific aspect layer in the {{{advice.el}}} file, @xref{Aspect Oriented Programming}. It is then easy to switch logging on or off by simply enabling or disabling this particular layer in the file. In addition, more detailed levels of trace are simply implemented by creating new advising functions for events of interest in this layer.
+
+== Implementation ==
+
+This section describes in more details the current implementation of NClose basic operations.
+
+The implementation of NClosEmacs relies on the underlying ELisp interpreter in Emacs. The primary design choice was to represent each sign and hypothesis in rules as Lisp symbols, the value of which would be the value referred to or inferred by the expert system.
+
+As a consequence of this choice, rules are Lisp macro forms which call internal functions managing a few global (to the ELisp environment) variables used by the rule interpreter. Note that as signs are Lisp variables, they are available in the ELisp environment available with each Emacs session. In other words, the inference engine and the loaded rule base(s) are indeed available whatever the buffer displayed in Emacs provided they were initialized and loaded in the same session.
+
+As a reminder, NClosEmacs is made available to the current Emacs session by loading the {{{nclose.el}}} file with the standard command {{{M-x load-file}}}<nowiki>; a rule base is loaded for interpretation by the NClosEmacs engine by opening a buffer on the rule base file (</nowiki>{{{C-x C-f}}} or {{{C-x C-v}}}, for instance) and evaluating the buffer with the standard interactive command {{{M-x eval-current-buffer}}} in Emacs.
+
+The interpreter relies on a global agenda, a first-in first-out stack of hypotheses to evaluate. Gating, which is enabled by default, is responsible for posting hypotheses on the agenda as the inference progresses. (Further research might in fact unveil other inference coprocesses that would interact with the agenda during an expert system session.) The essential interpreter process pops out the next hypothesis from the agenda, stopping it it is empty, and passes it to the evaluator.
+
+The evaluator implements a simple backward-chaining mode. Rules leading to the hypothesis are first collected from production memory. All are in turn evaluated by attempting to pass their LHSes to the ELisp evaluator (the {{{eval}}} function). On a failure to evaluate due to an unbound symbol, which in the chosen representation stands for an unknown sign, a question is asked to the user and evaluation is retried until it is successful. Individual rules evaluations are implicitly or-ed to assign a boolean value to the hypothesis, triggering the corresponding RHSes if present.
+
+As previously mentioned, this implementation is also intended as a base for further research. A promising direction is to look into advising each of the previous evaluation steps to evolve domain-specific inference engines for vertical applications, while keeping the general architecture and rules syntax of NClosEmacs. Another direction of research is to investigate attachment of other cognitive coprocesses to the inference itself, again using advising functions in system-specific layers. (Machine Learning and DDB/TMS being prime candidates for inference coprocesses in the NCLose architecture.)
+
+Finally NCloseEmacs runs in the Emacs universe. It is only natural that it should come with a rudimentary, at this stage, major mode for authoring and running rule bases. The current implementation, which uses the generic mode approach, is only a first look into that development.
+
+=== Rules compilation ===
+
+An introductory word about the basic data structures in this implementation of NClosEmacs.
+
+In this version, the four global variables required for the interpreter are simply implemented as lists.
+
+* nclose-global-signs is the list of signs collected by "compiling" the rules
+* nclose-global-hypos is the list of hypotheses kept in a separate list; note that an hypothesis might be a sign if it is mentioned in another rule\'s LHS (the {{{Yes}}} and {{{No}}} operators operate on hypotheses as well as on boolean signs).
+* nclose-global-pm is the list of rules currently loaded
+* nclose-global-agenda is the agenda, also implemented as list.
+
+Other global variables are possibly added by advising functions as required for the operation of their layer. This is in fact the case for the gating and logging layers.
+
+ELisp offers several alternatives to list for the implementation of the global interpreter variables: hash-lists, sequences, property lists and association lists are valid candidates for alternative implementations. Furthermore, several extension packages exist for ELisp and Emacs to integrate with external repositories such as relational databases, file systems or remote servers. These could be explored in further research work.
+
+=== Agenda Driven Evaluation ===
+
+The agenda keeps track of hypotheses to evaluate. The initial hypotheses are posted through the suggest command and, indirectly, by the initial volunteer command. Other hypotheses may be posted during the inference process.
+
+However, when the evaluation of a rule finds a yet unbound hypothesis, it starts evaluating that hypothesis at once, without posting it to the agenda.
+
+=== Classes and Objects ===
+
+Not implemented yet. (But under intensive investigation!)
+
+==== Ontologies ====
+
+==== Default Object System ====
+
+==== OWL-Lite Object System ====
+
+==== Topic Maps Object System ====
+
+==== Adding new object systems ====
+
+=== Aspects ===
+
+As a practical research matter, this implementation looks at aspects to support some of the NClose behaviors. In the current version of NClosEmacs, AOP has been investigated to develop so-called inference @dfn{coprocesses}, additional computing processes that occur while inference is progressing. The coprocesses we have in mind range from simple logging of user actions and inference engine deductions to complex machine learning algorithms or truth maintenance systems. In the current release we have experimented with using aspects, or to be more specific context-oriented programming, for the NClose gating mechanism and for logging.
+
+==== The Gating Aspect Layer ====
+
+Gating is somewhat typical of an inference coprocess in the previously proposed sense. A generic inference coprocess is expected to rely on some data structure, possibly dependent on the rule base, which hence requires initialization and re-initialization with the expert system sessions. At inference time, the coprocess data structure is likely to be used and modified as inference progresses.
+
+In the case of gating in Nclose, a record of associations between signs and hypotheses is collected when rules are loaded and compiled in memory. This forward association information is implemented here as a simple global property list. As previously mentioned, ELisp offers many alternatives for consideration as well. At inference time, whenever a sign becomes known its associated hypotheses are posted (in no particular order) on the agenda for later evaluation.
+
+Since the aspect layers are all implemented through ELisp advising functions, the later are then required at initialization and reset time to create and set up the gating data structure, i.e. the forward association property list; at load-and-compile time when rules\' LHSes are parsed; and, of course, at run time when the inference process assigns values to unknown signs. This is a typical advice layer architecture as provided in the {{{advice.el}}} file.
+
+In particular the NClosEmacs functions that require advising functions in this layer are:
+
+* nclose-global-init
+* nclose-reset-globales
+
+to synchronize the gating data structure and sessions,
+
+* sign-compile
+
+to capture associations between LHS signs and hypotheses at load-and-compile time,
+
+* sign-writer
+
+to cause associated goals to be posted on the agenda when signs become known at inference time.
+
+Using AOP gating is implemented with four advising functions at minimal cost.
+
+==== The Logging Aspect Layer ====
+
+This layer exemplifies a cross-cutting concern where a much larger number of functions in the implementation are concerned. Depending on the level of details required for logging a few, some or many functions need to be advised in this layer.
+
+The current implementation logs these events:
+
+* start of the inference process (''knowcess'')
+* beginning of the evaluation of a new hypothesis
+* beginning of the unification of a rule\'s LHS
+* beginning of the firing of a rule\'s RHS
+* assignment of a value to a sign
+
+Of course, adding more detailed tracing facilities is a matter of complementing these with new advising functions for events of interest.
+
+All events are logged into a special buffer named {{{<nowiki>*nclose-log*</nowiki>}}} and available through the usual buffer commands in Emacs. Note that this buffer is emptied at each session reset and should be saved if required for later inspection.
+
+=== The NClose major mode ===
+
+The NClose major mode, still pretty much work in progress at this stage, is part of the default front-end to NClosEmacs. The general idea is that rule bases are simple text files edited in standard Emacs buffers. All major interactions with the expert system are designed to happen from within these buffers. Hence all user commands are interactive Lisp functions usually invoked with the {{{M-x}}} prefix. Of course, some NClosEmacs specific buffers, such as the log buffer, might also be involved, or commands such as the Encyclopaedia may also work in any buffer, but the main idea is that major user interactions are centered around the rule base buffer itself. (Note: this might evolve in later versions when classes/objects are added.)
+
+The NClose major mode, in its current implementation, serves as a blueprint for a concrete expert system dashboard. In order to start from a simple base, this mode is derived from the Emacs generic mode so as to experiment with various design options. Its major function in this revision is to font-lock hypotheses in the rule base text to reflect the progress of the inference process.
+
+ {{{
+ (define-generic-mode \'nclose-mode
+   \'(";")
+   \'("add-to-kb")
+   \'(("(@hypo[ ]+\\\\([a-zA-Z0-9\\-]+\\\\))" 0 (hypo-facespec (match-string 1)))
+ 
+      )
+   \'()
+   \'()
+   "NClose-mode is a major mode for authoring and knowcessing rule bases."
+ 
+ )
+}}}
+
+As can be seen from the code, the major mode highlights the rule definition keyword, and parses the rules source for hypothesis, selecting a font according to its status (under evaluation, known true or known false).
+
+Nclose mode is invoked with {{{M-x nclose-mode}}} when in a rule base text buffer. It is also, in Emacs fashion, automatically set for a buffer if the first line of the file declares:
+
+{{{
+ ;; -*- mode: nclose -*-
+}}}
+
+a standard way to tell Emacs to switch to the appropriate major mode when displaying this file.
+
+== A Conclusion and a Starting Point ==
+
+The NClosEmacs implementation is both a valid and complete implementation of the NClose inference engine, as originally thought out more than twenty five years ago, and a new base for further research work.
+
+New design choices, more specifically the leverage of the AOP and context-oriented programming approach, which are investigated in this implementation, open new avenues of research. The emergence, in particular, of inference coprocesses as a critical formulation of extra features of the inference engine with the added benefit of an explicit implementation technique through advising functions is one of the remarkable facet of NClosEmacs.
