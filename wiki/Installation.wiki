@@ -10,11 +10,11 @@ and Linux.
 == Downloading and Installing NClosEmacs ==
 A tarball is available for download at the Google code repository
 under the [http://code.google.code/p/nclosemacs] project header.  The archive contains ELisp
-files, with the .el extension, and an Emacs info file
+files, with the .el extension, compiled ELisp files, with the .elc extension, and an Emacs info file
 {{{nclosemacs.info}}}.  They are installed separately.
 
   * Create a directory to contain the ELisp files (as well as some of the rule base example files provided in the archive), say {{{/home/nclose}}}.
-  * Move or untar all ELisp (.el) files in the newly created directory
+  * Move or untar all ELisp (.el and .elc) files in the newly created directory
   * In your {{{.emacs}}} file add the nclose directory to the load path Emacs will use by adding the following line: 
   ** {{{(add-to-list 'load-path "/home/nclose")}}}
 
@@ -33,7 +33,7 @@ be expedited at Emacs launch by adding the following line to the
 {{{~/.emacs}}} initialization file:
 
 {{{
-(load-file "nclose.el")
+(load-file "nclosemacs.elc")
 }}}
 
 NClosEmacs' manual and user interface are described in the
