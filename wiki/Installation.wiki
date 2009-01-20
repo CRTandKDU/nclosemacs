@@ -15,26 +15,17 @@ files, with the .el extension, compiled ELisp files, with the .elc extension, an
 
   * Create a directory to contain the ELisp files (as well as some of the rule base example files provided in the archive), say {{{/home/nclose}}}.
   * Move or untar all ELisp (.el and .elc) files in the newly created directory
-  * In your {{{.emacs}}} file add the nclose directory to the load path Emacs will use by adding the following line: 
+  * In your {{{.emacs}}} file add the nclose directory to the load path Emacs will use by adding the following lines: 
   ** {{{(add-to-list 'load-path "/home/nclose")}}}
+  ** {{{(load-file "nclose-lib.el")}}}
 
 This completes the basic installation of NClosEmacs to work with 
 Emacs or XEmacs, under Windows, Cygwin and Linux.
 
-At any time during an Emacs session, the NClose inference engine may
-be loaded by the usual load file command: {{{M-x load-file
-nclose.el}}}.  Rule bases are edited as text files in standard
+Rule bases are edited as text files in standard
 Emacs buffers and loaded in memory--once the NClose engine itself has
-been loaded--by simply evaluting the buffer with the usual command
+been loaded--by simply evaluating the buffer with the usual command
 {{{M-x eval-current-buffer}}}.
-
-If required the loading of the expert system inference engine may also
-be expedited at Emacs launch by adding the following line to the
-{{{~/.emacs}}} initialization file:
-
-{{{
-(load-file "nclosemacs.elc")
-}}}
 
 NClosEmacs' manual and user interface are described in the
 documentation provided in info, PDF, and HTML formats, in the same
