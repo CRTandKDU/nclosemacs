@@ -99,13 +99,7 @@ selected in the current NClosEmacs implementation.
 
 == ELisp Implementation ==
 
-The main implementation file is  
-
-{{{
-nclose.el
-}}}
-
-It loads the
+The main implementation file is {{{nclose.el}}}.  It loads the
 various ELisp files required, installs a new major mode for NClose
 rule bases and inits the rules engine.
 
@@ -119,19 +113,8 @@ rules, usually called _signs_, _variables_ or simply _data_ in the rest of
 the document, and each _hypothesis_ is actually implemented as an ELisp
 symbol.  This means that the value of a sign is obtained by typing its
 name at the top level Lisp listener.  For instance:
-
-{{{
-ACETATE-CYPROTERONE
-}}}
-
-and  
-
-{{{
-(eval
-'ACETATE-CYPROTERONE)
-}}}
-
-both return the value of the sign
+{{{ACETATE-CYPROTERONE}}} and {{{(eval
+'ACETATE-CYPROTERONE)}}} both return the value of the sign
 ACETATE-CYPROTERONE.  Unknown signs are simply unbound ELisp symbols.
 
 Another nice consequence of the reuse of the evaluator is that
@@ -140,16 +123,11 @@ Lisp.  Similarly actions in the righ-hand sides may use Lisp functions
 directly.  Pattern evaluation uses the error signalling mechanism of
 ELisp to trigger backward chaining if the unbound sign encountered is
 in fact an hypothesis, or a question to the user if simply a sign.
-In
-
-{{{
-unify.el
-}}}
-
-the basic LHS evaluation is as follows:
+In {{{unify.el}}} the basic LHS evaluation is as follows:
 
 
 {{{
+
 (defun nclose-get-unification (pattern)
   "Interactive unification of pattern"
   (condition-case error
@@ -161,6 +139,7 @@ the basic LHS evaluation is as follows:
     )
     )
 )
+
 }}}
 
 
@@ -171,19 +150,7 @@ possibly interactively, and retries.  This process recursively
 evaluates all required signs in the LHS to produce the final
 unification result, here a true or false value.
 
-The  
-
-{{{
-sign-writer
-}}}
-
-and  
-
-{{{
-sign-reader
-}}}
-
-high level
+The {{{sign-writer}}} and {{{sign-reader}}} high level
 getter/setter functions for signs are separately coded as they may be
 advised in order to implement side-effects.
 
@@ -192,6 +159,7 @@ with the sequence of Lisp forms implicitly and-ed, as in:
 
 
 {{{
+
 (defun and-eval-rhs (rhs)
   "Recursively execute the sequential execution of RHS forms"
   (cond
@@ -199,57 +167,38 @@ with the sequence of Lisp forms implicitly and-ed, as in:
    (t (and (eval (car rhs)) (and-eval-rhs (cdr rhs))))
    )
 )
+
 }}}
 
 
 This works provided all RHS operators are pre-defined to call the
 advised functions if necessary.  This is in particular the case for
-the ubiquitous  
-
-{{{
-@SET
-}}}
-
-operator which expects exactly a sign
+the ubiquitous {{{@SET}}} operator which expects exactly a sign
 as its first argument and a value as the second argument.  In the file
-
-{{{
-rhs.el
-}}}
-
-this operator, for instance, is implemented as a
+{{{rhs.el}}}, this operator, for instance, is implemented as a
 Lisp macro:
 
 
 {{{
+
 (defmacro @set (var val)
   "External RHS assignment operator"
   (progn (sign-writer var (nclose-get-unification val)) t)
 )
+
 }}}
 
 
 This example implementation of a RHS operator shows the important
 features to keep in mind.  Execution indeed returns a boolean value;
 remember the implicit and in the sequence of RHS forms execution.
-Returning   
-
-{{{
-nil
-}}}
-
-would stop further execution of the
+Returning {{{nil}}} would stop further execution of the
 RHS. (This crude control mechanism could be useful to an advising
 function for instance.)
 
 The RHS value assignment itself is a two-step process: the value is
 computed, which may entail asking the user for input, hence the call
-to the generic   
-
-{{{
-nclose-get-unification
-}}}
-
+to the generic {{{nclose-get-unification}}}
 evaluation/unification function also used in LHS patterns evaluation;
 and then it is assigned to the said sign through the standard setter,
 which as previously mentioned may itself be advised.
@@ -300,55 +249,33 @@ signs discovered when parsing LHSes;
 i.e. when it becomes known.
 
 The layer is hence implemented as three advising functions, gathered
-with other layers in the   
-
-{{{
-advice.el
-}}}
- 
-file.  The following
+with other layers in the {{{advice.el}}} file.  The following
 advising function, for instance:
 
 
 {{{
+
 (defadvice sign-compile (after gating-layer (sign hypo))
   "Builds the forward association list, hypo is nil when RHS are compiled"
   (if hypo (plist-push sign hypo))
 )
+
 }}}
 
 
-advises the   
-
-{{{
-sign-compile
-}}}
- 
-function, called at rule
+advises the {{{sign-compile}}} function, called at rule
 compilation time, and adds the rule's hypothesis to the parsed sign
 forward association list.  This forward association list is later
 used, at runtime, to push hypotheses on the agenda when signs become
 known.
 
 In order to implement a minimal logging facility, another layer is
-implemented in   
-
-{{{
-advice.el
-}}}
- 
-The functions in this layer
+implemented in {{{advice.el}}}.  The functions in this layer
 simply advise all of the interactive command functions, keeping track
 of all interactions with the user, as well as the evaluation
 functions, keeping trace of the expert system's deductions as the
 session progresses.  These traces are stored in a special Emacs buffer
-named   
-
-{{{
-*nclose-log*
-}}}
- 
-and addressable through the usual set
+named {{{*nclose-log*}}} and addressable through the usual set
 of Emacs buffer commands.
 
 Advising functions are enabled and activated by default in the same
@@ -356,6 +283,7 @@ file:
 
 
 {{{
+
 ;; Enable/Disable layers as required
 (ad-enable-regexp "gating-layer")
 (ad-enable-regexp "log-layer")
@@ -363,6 +291,7 @@ file:
 ;; Activate advising functions
 (ad-activate-regexp "gating-layer")
 (ad-activate-regexp "log-layer")
+
 }}}
 
 
@@ -379,61 +308,24 @@ default front-end is to assist in the authoring and running of rule
 bases from within Emacs.
 
 The NClose rules engine is manually loaded by issuing the standard
-Emacs command   
-
-{{{
-M-x load-file
-}}}
- 
-on the master NClose
-
-{{{
-nclose.el
-}}}
- 
-file (with the .elc extension if it has been
+Emacs command {{{M-x load-file}}} on the master NClose
+{{{nclose.el}}} file (with the .elc extension if it has been
 compiled at installation).  This may also be placed in the
-
-{{{
-.emacs
-}}}
- 
-initialization file.
+{{{.emacs}}} initialization file.
 
 The rule base itself is a text document edited in a standard Emacs
 buffer.  @xref{Authoring Knowledge Bases}, for the
 actual syntax of rules declarations.  The user "loads" a rule base in
 memory simply by evaluating the buffer containing its text, the
-
-{{{
-M-x eval-current-buffer
-}}}
- 
-in Emacs.
+{{{M-x eval-current-buffer}}} in Emacs.
 
 NClose provides a number of commands, implemented as interactive ELisp
-functions invoked through the usual   
-
-{{{
-M-x
-}}}
- 
-prefix to setup
+functions invoked through the usual {{{M-x}}} prefix to setup
 and run an expert session.  In addition, traces and execution logs may
 be provided in NClose-specific buffers such as
+{{{*nclose-log*}}}.
 
-{{{
-*nclose-log*
-}}}
- 
-
-The  
-
-{{{
-nclose.el
-}}}
- 
-file also provides a minimal major mode for
+The {{{nclose.el}}} file also provides a minimal major mode for
 text-based rule bases.  At this stage, the major mode is only
 concerned with highlighting the inference process as it progresses
 through the rule base.  Hypotheses under evaluation are highlighted as
@@ -450,13 +342,7 @@ implementation is revised.)
 Rule bases for NClose are simple text documents which can be edited in
 Emacs.  These rule base text documents follow the Lisp syntax
 conventions, and more specifically the ELisp conventions.  Comments
-lines begin with the   
-
-{{{
-;
-}}}
- 
-character.  The body of the rule
+lines begin with the {{{;}}} character.  The body of the rule
 base is constituted of well-balanced Lisp forms, one for each rule in
 the knowledge base.
 
@@ -466,11 +352,13 @@ NClose provides a high-level Lisp macro to declare a rule.
 
 
 {{{
+
 (add-to-kb
   (@LHS= *pattern-lisp-form*)
   (@hypo *hypothesis*)
   [(@RHS= [*RHS-lisp-form*]+) *string-documentation*]
 )
+
 }}}
 
 
@@ -479,24 +367,13 @@ The macro parses four arguments, the last two being optional:
  * _pattern-lisp-form_ is a lisp form expressing a boolean computation
 with an ultimate true/false value.  It usually is an AND/OR tree of
 several elementary conditions involving any of the standard Lisp
-functions, namely:   
-
-{{{
-(string= < > = /= >= <= + - * / and or not
-null yes no Yes No)
-}}}
-   
-Any other symbol in the pattern is
+functions, namely: {{{(string= < > = /= >= <= + - * / and or not
+null yes no Yes No)}}}.  Any other symbol in the pattern is
 considered as sign and compiled as such by the rule compiler.
  * _hypothesis_ is the hypothesis for the rule.
  * Optionally, _RHS-lisp-form_ is one of possibly several right-hand
 side actions.  Currently the only NClose specific RHS action is the
-
-{{{
-(@SET *sign* *expression*)
-}}}
- 
-operator used to assign a
+{{{(@SET *sign* *expression*)}}} operator used to assign a
 value (_expression_) to a sign.  Other Lisp functions in a RHS action
 are passed without modification to the Lisp evaluator.
  * _string-documentation_ is an optional textual description attached to
@@ -507,6 +384,7 @@ meaningful, rules:
 
 
 {{{
+
 (add-to-kb (@LHS= (and (> a 2) (string= foo "hello"))) (@hypo H3)
 	(@RHS= (@set frob (* 2 a)) (@set boz "test")) "Another
 comment")
@@ -515,6 +393,7 @@ comment")
 
 (add-to-kb (@if (and (> a c) (< (* d 5) 10))) (@hypo H2)
 	nil "Commenting this H2 rule")
+
 }}}
 
 
@@ -643,7 +522,9 @@ The default nclos is installed by invoking:
 
 
 {{{
+
 (nclose-use-nclos nil)
+
 }}}
 
 at the beginning of the knowledge base file.
@@ -655,8 +536,10 @@ knowledge base:
 
 
 {{{
+
     (add-to-kb-sets 'Ca  '(O1 O2 O3))
     (add-to-kb-sets 'Cb  '(O4 O5))
+
 }}}
 
 
@@ -693,7 +576,9 @@ given condition.  The general form of a pattern is:
 
 
 {{{
+
     (all-in 'CLASS-NAME INTEGER 'AND-OR-ELISP-FORM)
+
 }}}
 
 
@@ -701,7 +586,9 @@ and
 
 
 {{{
+
     (some-in 'CLASS-NAME INTEGER 'AND-OR-ELISP-FORM)
+
 }}}
 
 
@@ -730,6 +617,7 @@ Let's look at a few examples.
 
 
 {{{
+
 (add-to-kb-sets 'Ca  '(O1 O2 O3))
 (add-to-kb-sets 'Cb  '(O4 O5))
 
@@ -739,6 +627,7 @@ Let's look at a few examples.
 		(some-in 'Ca 1 '(> p3 5)))))
  (@hypo H)
 )
+
 }}}
 
 
@@ -782,7 +671,9 @@ LHS is true and the result set is the set:
 
 
 {{{
+
 ((O1 O3))
+
 }}}
 
 
@@ -792,12 +683,14 @@ Now consider a slightly differently phrased rule:
 
 
 {{{
+
 (add-to-kb
  (@if (and (> x 0)
 	   (and (all-in 'Ca 1 '(or (> p1 0) (> p2 0)))
 		(some-in 'Ca 2 '(> p3 5)))))
  (@hypo H)
 )
+
 }}}
 
 
@@ -810,7 +703,9 @@ instances with a _p3_ greater than 5:
 
 
 {{{
+
 ((O1 O2 O3) (O1 O3))
+
 }}}
 
 
@@ -819,12 +714,14 @@ edited again, shows:
 
 
 {{{
+
 (add-to-kb
  (@if (and (> x 0)
 	   (and (some-in 'Ca 1 '(or (> p1 0) (> p2 0)))
 		(some-in 'Ca 1 '(> p3 5)))))
  (@hypo H)
 )
+
 }}}
 
 
@@ -848,7 +745,9 @@ the result set of applying the later rule is:
 
 
 {{{
+
 ((01))
+
 }}}
 
 while the former rule would fail, the LHS would be set to false and
@@ -859,19 +758,23 @@ pattern, however:
 
 
 {{{
+
 (add-to-kb
  (@if (and (> x 0)
 	   (and (some-in 'Ca 1 '(or (> p1 0) (> p2 0)))
 		(some-in 'Ca 2 '(> p3 5)))))
  (@hypo H)
 )
+
 }}}
 
 the result set for the later ontology table would contain two subsets:
 
 
 {{{
+
 ((O1 O2) (O1 O3))
+
 }}}
 
 (_Same exercize: Why?_)
@@ -888,20 +791,16 @@ As previously mentioned the unification result set is passed, when the
 rule is fired, to the RHS which basically executes its sequence of
 commands.
 
-The syntax of the   
-
-{{{
-@set
-}}}
- 
-RHS command has been extended to
+The syntax of the {{{@set}}} RHS command has been extended to
 handle the results of the LHS unifications.  The familiar syntax is,
 as a reminder:
 
 
 {{{
+
 (@set VARIABLE SCALAR-VALUE)
 (@set VARIABLE LISP-FORM)
+
 }}}
 
 which respectively assign a value or a computed value to the said
@@ -912,9 +811,11 @@ Two new forms of the set command are available with the default nclos:
 
 
 {{{
+
 (@set (prop-in OBJECT-NAME PROPERTY-NAME) [ SCALAR-VALUE | LISP-FORM ])
 (@set (member-in CLASS-NAME INTEGER PROPERTY-NAME)
                  [ SCALAR-VALUE | LISP-FORM ])
+
 }}}
 
 
@@ -923,7 +824,9 @@ designated property of the said object. For instance:
 
 
 {{{
+
 (@set (prop-in 'O1 'p3) 5)
+
 }}}
 
 sets the value of the _p3_ property of object _O1_ to the integer 5.
@@ -936,6 +839,7 @@ A rule with a RHS:
 
 
 {{{
+
 (add-to-kb
  (@if (and (> x 0)
 	   (and (some-in 'Ca 1 '(or (> p1 0) (> p2 0)))
@@ -947,6 +851,7 @@ A rule with a RHS:
 	(@set (member-in 'Ca 1 'p4) y)
  )
 )
+
 }}}
 
 working against the simple aforementioned ontology:
@@ -1002,32 +907,21 @@ Within an ontology, a class is defined by the following statement:
 
 
 {{{
+
 (owl-class! 'Cb 'Ca)
+
 }}}
 
-which defines the class   
-{{{
-Cb
-}}}
- 
-as a subclass of class
-
-{{{
-Ca
-}}}
-
-By convention the rule of all classes in the
-OWL-Lite nclos is called   
-{{{
-'Thing
-}}}
- 
-and must be stated in
+which defines the class {{{Cb}}} as a subclass of class
+{{{Ca}}}.  By convention the rule of all classes in the
+OWL-Lite nclos is called {{{'Thing}}} and must be stated in
 every ontology as:
 
 
 {{{
+
 (owl-class! 'Thing nil) ;; Required
+
 }}}
 
 
@@ -1045,22 +939,13 @@ The declaration statement for an individual in the OWL-Lite nclos is:
 
 
 {{{
+
 (owl-individual! 'Obj1 'Cb)
+
 }}}
 
-which declares a new individual,   
-
-{{{
-Obj1
-}}}
-
-as a member of the
-class  
-
-{{{
-Cb
-}}}
-
+which declares a new individual, {{{Obj1}}}, as a member of the
+class {{{Cb}}}.
 
 
 ==== Properties in the OWL-Lite nclos ====
@@ -1094,33 +979,20 @@ Hence the declaration of a property states its name, domain and range.
 
 
 {{{
+
 (owl-property! 'p1 'Ca 'Thing)
+
 }}}
 
-The previous statements declares the property    
-{{{
-p1
-}}}
-
-with
-its domain being all instances of the class    
-{{{
-Ca
-}}}
- 
-and its
+The previous statements declares the property {{{p1}}}, with
+its domain being all instances of the class {{{Ca}}} and its
 range any instance of the root class "Thing".  This states that any
 individual of class "Ca" may have a property "p1" which value is any
 individual--as all individuals are instances of the root class.
 
 If the property's value is a basic type (number, string)
 rather than an individual, its range should be defined as
-
-{{{
-'Thing
-}}}
- 
-anyway.  The OWL-Lite nclos provides a special
+{{{'Thing}}} anyway.  The OWL-Lite nclos provides a special
 construct, called a _scalar_, to handle basic types.
 
 In the current first stage of the implementation of NClosEmacs, all
@@ -1135,19 +1007,13 @@ domain individual and a specific range value. For instance,
 
 
 {{{
+
 (owl-slot! 'mySlotId 'p1 'Obj1 (owl-scalar! 5))
+
 }}}
 
-assigns the value 5 to the property    
-{{{
-p1
-}}}
- of the individual
-
-{{{
-Obj1
-}}}
- .
+assigns the value 5 to the property {{{p1}}} of the individual
+{{{Obj1}}}.
 
 
 ==== Ontologies in the OWL-Lite nclos ====
@@ -1158,6 +1024,7 @@ ontology is defined and asserted with the following statement:
 
 
 {{{
+
 (nclose-use-nclos ':OWL-LITE
   (onto! 'owl-bench1
 	 ;; Classes
@@ -1186,30 +1053,14 @@ ontology is defined and asserted with the following statement:
 	 nil
 	 )
 )
+
 }}}
 
-The function   
-
-{{{
-nclose-use-nclos
-}}}
- 
-is now used to install an
+The function {{{nclose-use-nclos}}} is now used to install an
 OWL-Lite ontology--rather than the default nclos, in which case its
-first argument is   
+first argument is {{{nil}}}.
 
-{{{
-nil
-}}}
- .
-
-The ontology itself is defined within the   
-
-{{{
-onto!
-}}}
- 
-statement
+The ontology itself is defined within the {{{onto!}}} statement
 by its name followed by the four lists of classes, individual,
 properties and slots.  In this specific example no slots are defined
 in the ontology.  (Slots, however, may be defined dynamically during
@@ -1224,14 +1075,8 @@ whether for the default nclos or the OWL-Lite nclos.
 @xref{Writing Rules with Patterns in the default nclos}, and @xref{Writing Rules with RHSes in the Default Nclos}.
 
 The scope of the LHS operators is expanded in the OWL-Lite nclos as it
-supports inheritance. Hence the   
-
-{{{
-all-in, some-in, oone-in,
-none-in
-}}}
- 
-patterns now select all instances of the mentioned
+supports inheritance. Hence the {{{all-in, some-in, oone-in,
+none-in}}} patterns now select all instances of the mentioned
 class _and_ of all its subclasses recursively.
 
 
@@ -1264,24 +1109,13 @@ Later implementations should provide a proper class/object navigator.
 = Running a session =
 
 The first step is to load the NClosEmacs engine (from Emacs) by
-issuing the command   
-
-{{{
-M-x load-file nclose.el
-}}}
- 
-This
+issuing the command {{{M-x load-file nclose.el}}}.  This
 basically loads the core engine and initializes it for the current
 Emacs session.
 
 The preferred way to run an expert session in NClose is to open the
 rule base text in a new Emacs buffer and evaluate its content with the
-usual interactive Lisp command   
-
-{{{
-M-x eval-current-buffer
-}}}
- .
+usual interactive Lisp command {{{M-x eval-current-buffer}}}.
 This command compiles the rule base and sets up the rule interpreter
 for a new session.
 
@@ -1314,21 +1148,9 @@ should a specific sequencing of the rules or a lazy evaluation be
 required for a particular domain application.
 
  * nclose-suggest
-This function is invoked with   
-
-{{{
-M-x nclose-suggest
-}}}
- 
-to
+This function is invoked with {{{M-x nclose-suggest}}} to
 suggest an hypothesis.  It works with the Emacs completion mechanism
-so that the usual   
-
-{{{
-? TAB SPC
-}}}
- 
-special characters may be
+so that the usual {{{? TAB SPC}}} special characters may be
 used to select the hypothesis to suggest.
 
 @dfn{Volunteering} is the process through with a
@@ -1336,13 +1158,7 @@ known piece of data is volunteered to the NClose engine, usually
 before running an interactive session.
 
  * nclose-volunteer
-This function is invoked with   
-
-{{{
-M-x nclose-volunteer
-}}}
- 
-to
+This function is invoked with {{{M-x nclose-volunteer}}} to
 volunteer the value of a sign.  The user is prompted for the sign
 first (with standard Emacs completion available) and then for the
 value.
@@ -1357,61 +1173,36 @@ session to provide initial information to the expert system.
 processing_ denotes the process of running an interactive expert system
 session with NClosEmacs.  Once the initial suggest and volunteer phase
 is completed, the rule interpreter is started with the
-
-{{{
-knowcess
-}}}
- 
-command.  User interactions happen in the
+{{{knowcess}}} command.  User interactions happen in the
 mini-buffer as the inference process might need to prompt the user for
 information.
 
  * nclose-knowcess
-This interactive command invoked with    
-{{{
-M-x
-nclose-knowcess
-}}}
- without argument.
+This interactive command invoked with {{{M-x
+nclose-knowcess}}} without argument.
 
 When a question is asked to the user, interactions happen in the
-mini-buffer; the session may be aborted by typing    
-{{{
-C-g
-}}}
- .
+mini-buffer; the session may be aborted by typing {{{C-g}}}.
 
 The expert system session may be restarted at the end of the knowcess
 phase with the following command:
 
  * nclose-reset-session
-This interactive command invoked with    
-{{{
-M-x nclose-reset-session
-}}}
-
+This interactive command invoked with {{{M-x nclose-reset-session}}}
 restarts the expert system session, setting all signs back to unknown
 status and emtying the agenda.
 
  * nclose-reset-globales
 This interactive command invoked with
-
-{{{
-M-x nclose-reset-globales
-}}}
- without arguments
+{{{M-x nclose-reset-globales}}} without arguments
 reinitializes the rules engine.  In particular, all currently loaded
 rule bases are deleted from the production memory.
 
 There is also a less frequently used function:
 
  * nclose-reset-signs
-This interactive command invoked with    
-{{{
-M-x
-nclose-reset-signs
-}}}
- unbinds all previously known signs.
+This interactive command invoked with {{{M-x
+nclose-reset-signs}}} unbinds all previously known signs.
 
 
 == Encyclopaedia ==
@@ -1422,41 +1213,25 @@ Gathered under the exaggerated headline of "Encyclopaedia" these
 functions are as follows:
 
  * nclose-print-wm
-This interactive command which is invoked with    
-{{{
-M-x
-nclose-print-wm
-}}}
- inserts a table of signs and their values at
+This interactive command which is invoked with {{{M-x
+nclose-print-wm}}} inserts a table of signs and their values at
 the cursor position.
 
  * nclose-print-hypos
-This interactive command which is invoked with    
-{{{
-M-x
-nclose-print-wm
-}}}
- inserts a table of hypotheses and their values at
+This interactive command which is invoked with {{{M-x
+nclose-print-wm}}} inserts a table of hypotheses and their values at
 the cursor position.
 
 
 == Session logs ==
 
 A complete session log is maintained in a special Emacs buffer named
-
-{{{
-*nclose-log*
-}}}
- .  This buffer keeps track of the inference
+{{{*nclose-log*}}}.  This buffer keeps track of the inference
 progress from the initial knowcess command.  The buffer is erased with
 each reset session command issued by the user.
 
 Note that logging is implemented as a specific aspect layer in the
-
-{{{
-advice.el
-}}}
- file, @xref{Aspect Oriented Programming}.  It is then easy to switch logging on or off by
+{{{advice.el}}} file, @xref{Aspect Oriented Programming}.  It is then easy to switch logging on or off by
 simply enabling or disabling this particular layer in the file.  In
 addition, more detailed levels of trace are simply implemented by
 creating new advising functions for events of interest in this layer.
@@ -1483,32 +1258,12 @@ in Emacs provided they were initialized and loaded in the same
 session.
 
 As a reminder, NClosEmacs is made available to the current Emacs
-session by loading the    
-{{{
-nclose.el
-}}}
- file with the standard
-command    
-{{{
-M-x load-file
-}}}
- ; a rule base is loaded for
+session by loading the {{{nclose.el}}} file with the standard
+command {{{M-x load-file}}}; a rule base is loaded for
 interpretation by the NClosEmacs engine by opening a buffer on the
-rule base file (   
-{{{
-C-x C-f
-}}}
- or    
-{{{
-C-x C-v
-}}}
- , for
+rule base file ({{{C-x C-f}}} or {{{C-x C-v}}}, for
 instance) and evaluating the buffer with the standard interactive
-command    
-{{{
-M-x eval-current-buffer
-}}}
- in Emacs.
+command {{{M-x eval-current-buffer}}} in Emacs.
 
 The interpreter relies on a global agenda, a first-in first-out stack
 of hypotheses to evaluate.  Gating, which is enabled by default, is
@@ -1522,11 +1277,7 @@ the evaluator.
 The evaluator implements a simple backward-chaining mode.  Rules
 leading to the hypothesis are first collected from production memory.
 All are in turn evaluated by attempting to pass their LHSes to the
-ELisp evaluator (the    
-{{{
-eval
-}}}
- function).  On a failure to
+ELisp evaluator (the {{{eval}}} function).  On a failure to
 evaluate due to an unbound symbol, which in the chosen representation
 stands for an unknown sign, a question is asked to the user and
 evaluation is retried until it is successful.  Individual rules
@@ -1562,15 +1313,7 @@ interpreter are simply implemented as lists.
 the rules
  * nclose-global-hypos is the list of hypotheses kept in a separate
 list; note that an hypothesis might be a sign if it is mentioned in
-another rule's LHS (the    
-{{{
-Yes
-}}}
- and    
-{{{
-No
-}}}
-
+another rule's LHS (the {{{Yes}}} and {{{No}}}
 operators operate on hypotheses as well as on boolean signs).
  * nclose-global-pm is the list of rules currently loaded
  * nclose-global-agenda is the agenda, also implemented as list.
@@ -1635,11 +1378,7 @@ a structure made of:
 
  * a list of classes each uniquely identified by a name or id, each
 class may be attached to a parent class or to the root class (by
-convention    
-{{{
-Thing
-}}}
- ).
+convention {{{Thing}}}).
  * a list of objects each uniquely identified by a name or id and
 attached to a parent class.
  * a list of properties, also uniquely identified by a name or an id,
@@ -1654,16 +1393,8 @@ implementation only one such ontology may be installed.  Future
 releases may offer better ontology packages handling.)
 
 This simple ontology specification is provided in the
-
-{{{
-ontology.el
-}}}
- file.  This file contains the basic
-
-{{{
-onto-defstruct
-}}}
- ELisp macro which can be used by ontology
+{{{ontology.el}}} file.  This file contains the basic
+{{{onto-defstruct}}} ELisp macro which can be used by ontology
 models to instantiates the class, object, property and slot persistent
 records they need.
 
@@ -1671,62 +1402,42 @@ For instance, the OWL-Lite nclos defines its classes as:
 
 
 {{{
+
 (onto-defstruct owl-class ((:finder . id)) id subClassOf)
+
 }}}
 
 which specifies that a class in the OWL-Lite nclos has an id, which is
 unique and searchable for in the persistent store, and a
-
-{{{
-subClassOf
-}}}
- which contains the id of the parent class.
+{{{subClassOf}}} which contains the id of the parent class.
 With this ontology specification--in this case defined as expected
-in the    
-{{{
-owl-lite.el
-}}}
- file--concrete OWL-Lite classes in a
+in the {{{owl-lite.el}}} file--concrete OWL-Lite classes in a
 knowledge base are declared with ELisp forms like:
 
 
 {{{
+
 	      (owl-class! 'Thing nil)    ;; This is required
 	      (owl-class! 'Winery 'Thing)
 	      (owl-class! 'Region 'Thing)
 	      (owl-class! 'ConsumableThing 'Thing)
 	      (owl-class! 'Glen 'Winery)
+
 }}}
 
 These declarations have side-effects and create automatically getters
 and setters, testers and finders for their classes:
 
  * owl-class?
-Returns true if its argument is an    
-{{{
-owl-class!
-}}}
- form.
+Returns true if its argument is an {{{owl-class!}}} form.
 
  * owl-class-id
-Getter for the    
-{{{
-id
-}}}
- name property of the class argument.
+Getter for the {{{id}}} name property of the class argument.
 
  * update-owl-class-id
-Setter for the    
-{{{
-id
-}}}
- name property of the class
+Setter for the {{{id}}} name property of the class
 argument. It is also associated to setf, so that the invocation
-
-{{{
-(setf (owl-class-id class) 'New-Name)
-}}}
- works as expected.
+{{{(setf (owl-class-id class) 'New-Name)}}} works as expected.
 
  * owl-class-subClassOf
 Similar definition for setter as above.
@@ -1735,27 +1446,15 @@ Similar definition for setter as above.
 Similar definition for setter as above.
 
  * onto-find-owl-class id list-of-classes
-This function performs a basic search on the    
-{{{
-id
-}}}
- of a
-class, returning the    
-{{{
-(owl-class! ...)
-}}}
- that matches, if
+This function performs a basic search on the {{{id}}} of a
+class, returning the {{{(owl-class! ...)}}} that matches, if
 any, in the list passed as the second argument.
 
 These functions are used in the implementation of the adaptation of
 the pattern language to the nclos in point.  They may be used by
 programmers to extend the ontology services in NClosEmacs as well.
 
-All elements in an ontology model use the    
-{{{
-onto-defstruct
-}}}
-
+All elements in an ontology model use the {{{onto-defstruct}}}
 construct for their basic building blocks. @xref{Adding new
 object systems}
 
@@ -1770,56 +1469,48 @@ memory as ELisp lists.
 === Variables versus Slots ===
 
 In the current implementation they are two types of scalar--basic
-type--variables.  System-wide variables such as    
-{{{
-X
-}}}
- in
+type--variables.  System-wide variables such as {{{X}}} in
 the following LHS fragement:
 
 
 {{{
+
 (> X 3)
+
 }}}
 
 and slots, the value of which is also of a basic type, such as
-
-{{{
-p3
-}}}
- in:
+{{{p3}}} in:
 
 
 {{{
+
 (some-in 'Class-A 2 (> p3 3))
+
 }}}
 
 
 In the original Nexpert Object, system-wide variable were
 automatically updated to object type with special property
-
-{{{
-value
-}}}
- , so that the first condition would read:
+{{{value}}}, so that the first condition would read:
 
 
 {{{
+
 (> (prop-in 'X 'value) 3)
+
 }}}
 
 
 Another option with the current implementation would be to consider
-system-wide variables as local slots of a    
-{{{
-System
-}}}
- object,
+system-wide variables as local slots of a {{{System}}} object,
 so that the former LHS fragment would in fact read:
 
 
 {{{
+
 (> (prop-in 'System 'X) 3)
+
 }}}
 
 with the same effect.
@@ -1833,11 +1524,7 @@ such as all-in, some-in, and so forth.
 === Overview of the nclos API ===
 
 The articulation between the rule engine and the ontology management
-is defined in the    
-{{{
-nclos.el
-}}}
- file which specifies a set of
+is defined in the {{{nclos.el}}} file which specifies a set of
 ontology related functions required by the engine for evaluation,
 selection and execution of rules.  The most important are:
 
@@ -1865,54 +1552,19 @@ Returns as a list the store of classes or objects, accordingly.
 When extending NClosEmacs with a new nclos model, these functions, and
 other ancillary functions in the same file, have to be extended to
 accommodate the new model.  This can be done either by adding proper
-code into the    
-{{{
-(cond ...)
-}}}
- forms or by using advising
-functions.  In both cases the    
-{{{
-globales.el
-}}}
- and the
-
-{{{
-reset.el
-}}}
- might also require some alterations.
+code into the {{{(cond ...)}}} forms or by using advising
+functions.  In both cases the {{{globales.el}}} and the
+{{{reset.el}}} might also require some alterations.
 
 Usually the extensions of these functions make use of separate
 model-specific files as is the case for instance for:
 
- * Default nclos model.  Refers to the    
-{{{
-set-unification.el
-}}}
- and
-
-    
-{{{
-set-instances.el
-}}}
- files.
-
- * OWL-LITE nclos model. Refers to the    
-{{{
-owl-lite.el
-}}}
- and
-
-    
-{{{
-owl-instances.el
-}}}
- files which rely on the
-
-{{{
-ontology.el
-}}}
- base.
-
+ * Default nclos model.  Refers to the {{{set-unification.el}}} and
+{{{set-instances.el}}} files.
+ * OWL-LITE nclos model. Refers to the {{{owl-lite.el}}} and
+{{{owl-instances.el}}} files which rely on the
+{{{ontology.el}}} base.
+ * EIEIO nclos model. Refers to the {{{nclos-eieio.el}}} file. @xref{Adding new object systems}
 
 In contrast to the current (redundant) implementation, this separation
 would allow to on-demand loading of the required code for a given
@@ -1921,10 +1573,426 @@ first pass implementation where all models are indeed available all
 the time.
 
 
-=== Adding new object systems ===
 
-This section will show how a new nclos model, namely the EIEIO nclos,
-could be added to NClosEmacs.
+== Adding new object systems ==
+
+This section explains how to add a new object system to NClosEmacs.
+More specifically, this section details how the [cedet.sourceforge.net/info/eieio.html EIEIO] object system,
+part of the CEDET suite of tools for Emacs, may be added to NClosEmacs.
+
+=== Overview of classes and objects ===
+
+This section highlights the features of classes and objects in EIEIO
+which are relevant to the NClosEmacs rule system.
+
+The class and object system in EIEIO draws its inspiration from the
+[http://www.ravenbrook.com/doc/2003/07/15/clos-fundamentals/ CLOS standard] in the early eighties.  Its architecture is different
+from the modern "ontology" approach of the Semantic Web, best
+exemplified in RDF and OWL.  Along the lines of the reference _The
+Art of the MetaObject Protocol_, EIEIO provides classes, objects,
+generic functions and methods.  The integration path discussed in this
+chapter is only one way of articulating a NClos based on the ideas in
+_The Art_ but would basically work for other CLOS-inspired ELisp
+implementations.  (See also [http://lib.stat.cmu.edu/xlispstat/Src/other/closette/closette.lisp Closette].)
+
+The integration proposed here is implemented in the
+{{{nclos-eieio.el}}} file and supposes the EIEIO library to be
+properly installed in the load-path of Emacs.  Its basic design
+options are:
+
+ * Directly use classes and objects defined in EIEIO as classes and
+objects in the NClose set-oriented perspective.
+ * Similarly to the OWL implementation, define an "ontology"
+abstraction; here simply to bundle classes and objects effectively
+used in a rule base in a namespace.
+ * Map as directly as possible EIEIO-provided inheritance mechanisms
+to NClose inheritance requirements.
+
+These options simplify the integration work and reduce the amount of
+code necessary to implement the NClos API to EIEIO.
+
+
+=== NClos class implementation ===
+
+The minor departure from classes and objects as required in the NClose
+inference engine and CLOS-inspired class/object system is the set
+oriented perspective imposed by patterns in rules LHS (and set
+commands in the RHSes).  Operators like `some-in' or `all-in' trigger
+evaluation on all instances of said class as their side-effect is to
+build the list of matching objects to be passed to the rule RHS.  The
+classes used in the rule system hence are required to keep track of their
+instances.  Fortunately, this is easily implemented in EIEIO via the
+use of the special class {{{eieio-instance-tracker}}}, defined
+in the extension {{{eieio-base}}} module.
+
+Here we chose to define a new keyword {{{nclose-defclass}}} to
+supersede the standard CLOS {{{defclass}}} form for those
+classes which are used in a NClose knowledge base.  This specific
+class definition form simply attach the defined class to the root
+{{{eieio-instance-tracker}}} class rather than the default
+one.  Its definition is simply:
+
+
+{{{
+
+(defmacro nclose-defclass (name superclass fields &rest options-and-doc)
+  "Defines a NClose class for use in the knowledge base.  These classes are otherwise normal EIEIO classes, with additional structure to integrate with the inference engine LHS patterns and RHS commands."
+  `(eval-and-compile
+     (defvar ,(util-s-cat name "instances") nil)
+     (eieio-defclass ',name
+		     ;; Attach to a different metaclass
+		     ',(append superclass (list 'eieio-instance-tracker))
+		     ;; Add the required init forms for metaclass-inherited
+		     ',(append fields
+			       (list
+				(list 'tracking-symbol
+				      ':initform (util-s-cat name "instances"))))
+		     ',options-and-doc)
+       )
+  )
+
+}}}
+
+
+Note that this form defines a global variable, called
+{{{class-instances}}}, for each new class in order to track its
+instances as they are created and deleted.  This global variable is
+kept as the value of the {{{tracking-symbol}}} slot for each
+class.
+
+With this convention, the set of instances of a given class is simply:
+
+
+{{{
+
+(defun nclos-eieio-instances (class)
+  "Returns a list of the class instances, one level deep."
+  (symbol-value (util-s-cat class "instances")))
+
+}}}
+
+
+The methods in class {{{eieio-instance-tracker}}} are
+responsible for updating the tracking symbol at each instance creation
+of deletion.
+
+Finally the ontology abstration is a class defined as:
+
+
+{{{
+
+;; Experimental representation syntax, inspired loosely from OWL-Lite.
+(defclass eieio-ontology ()
+  ((onto-id
+    :initarg :id
+    :documentation "The unique name of the NClose class."
+    )
+   (onto-classes
+    :initarg :classes
+    :documentation "The list of CLOS/EIEIO class names in the NClose namespace."
+    )
+   (onto-objects
+    :initarg :individuals
+    :documentation "The list of CLOS/EIEIO object names in the Nclose namespace."
+    )
+   )
+  :documentation "The ontology (super)class."
+)
+
+}}}
+
+
+This simplistic class keeps tracks of all classes and objects relating
+to a knowledge base.  It could be enriched and extended towards a full
+namespace management with ontology-level primitives and commands, for
+instance.
+
+Note that as NClose classes are indeed EIEIO classes, they may be
+extended with generic functions and methods as for any other standard
+class.
+
+
+=== NClos object and slot implementation ===
+
+With the class implementation in place, NClose objects are none other
+than EIEIO objects, instances of {{{nclose-defclass}}} defined
+classes.  They are defined and used as would be any EIEIO standard
+object.  As an example, here is a complete ontology form as declared
+in a knowledge base file:
+
+
+{{{
+
+(nclose-use-nclos
+ ':EIEIO
+ (eieio-ontology "Test ontology"
+  :id "Experimental ontology"
+  :classes (list
+	    (nclose-defclass Ca ()
+			     ((pressure :initarg :pressure
+					:documentation "Measure at T0")
+			      (temperature :initarg :temperature
+					    :documentaion "Heat Excess")
+			     (volume :initarg :volume))
+			    "Tank class")
+	    (nclose-defclass Cb (Ca)
+			    ((manufacturer :initarg :manufct)
+			     )
+			    "Subtank with identified manufacturing origin")
+	    (nclose-defclass Cc (Ca)
+			    ((duration :initarg :duration)
+			     )
+			    "Subtank with identified alert duration")
+	   )
+ :individuals (list
+	       (Ca "O1-name" :pressure 200 :temperature 100 :volume 10)
+	       (Ca "O2-name" :pressure 200 :temperature 200 :volume 20)
+	       (Ca "O3-name" :pressure 200 :temperature 300 :volume 30)
+	       (Cb "O4-subtank"
+                   :manufct "GE"
+                   :pressure 200 :temperature 100 :volume 10)
+	       (Cc "O5")
+	       )
+ )
+)
+
+}}}
+
+
+This fragment shows an ontology with 3 classes, the first one being
+parent to the next two, and 5 objects variously defined.
+
+Note that, in contrast to Semantic Web inspired ontologies, slots are
+not separately defined as first-class properties like in OWL-LITE.
+Here the slots are implicitly defined in the class specificaiton and valued
+in the object declarations themselves.
+
+
+=== Query functions ===
+
+The get/set and query functions are the core of the NClos API
+implementation.  Adding a new object system involves adding dispatch
+calls in the {{{nclos.el}}} file to issue appropriate getter,
+setter and query calls according to the installed nclos. (Which means,
+in particular, that for a given knowledge base there is only one
+currently installed nclos, namely the one resulting from the last
+{{{nclose-use-nclos}}} call.)
+
+For instance, the slot reader should look like:
+
+
+{{{
+
+(defun nclos-slot-reader (sym prop)
+  "Get value of the slot identified by sym.prop, which may be unbound."
+  (cond
+   ((equal ':OWL-LITE nclose-global-nclos)
+    (owl-property-reader sym prop)  ;; See `owl-instances.el'
+    )
+   ((equal ':EIEIO nclose-global-nclos)
+    (eieio-property-reader sym prop) ;; See `nclos-eieio.el'
+    )
+   (t
+    (let ((val (get sym prop)))
+      (if val val
+	(read-minibuffer (format "What is the value of the %s of %s? " prop sym)))))
+   )
+)
+
+}}}
+
+
+and similarly for the other dispatch functions.
+
+==== Reading and Writing Slot Values ====
+
+With the previous design options in place, the getter and setter code
+for EIEIO is as follows:
+
+
+{{{
+
+(defun eieio-property-reader (sym prop)
+  "Reads in the scalar value of `prop' in object `sym' in the current EIEIO ontology."
+  (if (slot-boundp sym prop)
+      (slot-value sym prop)
+    (read-minibuffer (format "What is the value of %s of %s? " prop (object-name sym)))
+    )
+  )
+
+(defun eieio-property-writer (sym prop val)
+  "Writes value `val' to `prop' in object `sym'."
+  (set-slot-value sym prop val)
+  )
+
+}}}
+
+
+Note that these functions may be advised, if required, to implement
+additional inference mechanisms such as gating or context associations
+on individual slots or objects. (In the current implementation,
+though, it is not the case.)
+
+
+==== Querying the Ontology ====
+
+Query functions are required for the encyclopedia commands to output
+class and object descriptions.  They are also useful to implement
+browsers and other visual representation of the knowledge base.  The
+basic query functions defined in the NClos API are:
+
+ * {{{nclos-scope-acc}}} used in LHS unification to create a
+list of all instances of a given list of classes
+ * {{{nclos-find-instances}}} to provide a list of all objects
+in passed class argument
+ * {{{nclos-find-all-classes}}} to list all NClose defined
+classes in the knowledge base
+ * {{{nclos-find-all-objects}}} to list all NClose objects in
+the knowledge base, independently of their class attachment
+ * {{{nclos-find-slots}}} which returns a list of consed slot
+value pairs for a given object (or object name) argument.
+
+As NClose inheritance abstraction specifies that instances of
+subclasses are also instances of their superclasses, the firs step is
+to implement a recursive exploration of the class inheritance tree to
+produce all instances of a given class.  This is what the
+{{{nclos-eieieo-all-instances}}} function does in a
+NClos-dependent way.
+
+An example implementation of the unification initialization primitive
+for EIEIO classes:
+
+
+{{{
+
+;; Tail recursive implementation of initial extensions environment
+(defun eieio-scope-acc (specs env)
+  "Initializes the initial extensions for rules evaluation in EIEIO."
+  (cond
+   ((null specs) env)
+   (t
+    (let ((ext (map-append
+		(nclos-eieio-all-instances (extract-class (car specs)))))
+	    )
+	(put env (extract-class (car specs)) (make-vector (cdar specs) ext)))
+    (eieio-scope-acc (cdr specs) env)
+    )
+   )
+  )
+
+}}}
+
+
+The result is provided as the symbol plist for `env' which lists, for
+each class mentioned in a rule LHS, the initial list of its instances,
+called the _scope_.  As unification proceeds, the scope is further
+reduced by filtering it out according to the LHS patterns.  The final
+scopes are passed to the RHS, when all conditions are matched.
+
+The remaining query functions are somewhat simpler as they rely on
+calling to the global ontology currently installed, an instance of the
+{{{eieieo-ontology}}} class.
+
+
+{{{
+
+(defun eieio-find-all-classes (onto)
+  "List all class symbols defined in current ontology."
+  (mapcar '(lambda (class-spec) (elt class-spec 1)) (slot-value onto :classes))
+  )
+
+(defun eieio-find-all-objects (onto)
+  "List all individual names (objects) defined in ontology."
+  (mapcar 'object-name (slot-value onto :individuals))
+  )
+
+}}}
+
+
+Finding instances of a class is done as follows:
+
+
+{{{
+
+(defun eieio-find-instances (class)
+  "List all instances (recursively) of an EIEIO class. `class' is a symbol."
+  (mapcar 'object-name (map-append (nclos-eieio-all-instances class)))
+  )
+
+}}}
+
+
+Note that the string-typed names of objects are returned here rather
+than their raw vector symbol representation in EIEIO.
+
+Similarly for slots of a given object:
+
+
+{{{
+
+(defun eieio-find-slots (objname)
+  "List conses of prop . values for slots of `obj'"
+  (let ((obj (find-object objname nclose-global-ontology))
+	)
+    (mapcar '(lambda (x) (cons x (slot-value obj x))) (object-slots obj))
+    )
+  )
+
+}}}
+
+
+Note that the argument here is the name of the object, as a string,
+rather than the object symbol itself, hence the
+{{{find-object}}} query against the ontology.
+
+
+
+=== Packaging for the NClosEmacs library ===
+
+The suggested packaging for adding a new nclos system to NClosEmacs is
+to use the `provide/require' facilities for ELisp.  The NClos API
+implementation would usually {{{require}}} the class/object
+library and {{{(provide 'nclos-class-object-library)}}} to
+NClosEmacs.  The following steps are usually required:
+
+ * Implement the NClos API for the selected class/object library and
+use provide/require
+ * Edit the mamefile to trigger compilation of the previous
+implementation
+ * Edit {{{nclos.el}}} to appropriately dispatch calls to your
+library
+ * If required, add specific keywords and commands to the NClose major
+mode in {{{nclose-mode.el}}}
+ * Finally make sure the class/object library is in the load-path
+specified in the `makefile', with the make variable {{{LOADPATH}}}
+
+The library is rebuilt by issuing the {{{make release}}}
+command within the NClosEmacs directory.
+
+
+=== On the EIEIO nclos ===
+
+The `SATFAULT' directory in the release contains a revived antique
+example of knowledge base which was consistently used in
+demonstrations.  The `SATFAULT' knowledge base is provided in two
+forms, one with an OWL-LITE ontology, the other with an EIEIO
+implementation of the same ontology.
+
+In this EIEIO experimental implementation, the release benefits from
+the tree visualization in the {{{tree.el}}} file.  This
+EIEIO-specific features provides a basis for a simple _ontology browser_
+implementation.  This simple browser is invoked through the
+interactive command `nclose-browse-class'.
+
+For a given class, the browser shows the tree of its subclasses.  With
+the cursor positioned on the name of a class in the browser, several
+keyboard commands become available:
+
+ * `e' shows the documentation for the class, including its slots;
+ * `x' lists the instances of the class
+
+(Additional commands will become abailable in further releases.)
+
 
 
 
@@ -1964,11 +2032,7 @@ time to create and set up the gating data structure, i.e. the forward
 association property list; at load-and-compile time when rules' LHSes
 are parsed; and, of course, at run time when the inference process
 assigns values to unknown signs.  This is a typical advice layer
-architecture as provided in the    
-{{{
-advice.el
-}}}
- file.
+architecture as provided in the {{{advice.el}}} file.
 
 In particular the NClosEmacs functions that require advising functions
 in this layer are:
@@ -2012,12 +2076,7 @@ complementing these with new advising functions for events of
 interest.
 
 All events are logged into a special buffer named
-
-{{{
-*nclose-log*
-}}}
-
-and available through the usual buffer
+{{{*nclose-log*}}} and available through the usual buffer
 commands in Emacs.  Note that this buffer is emptied at each session
 reset and should be saved if required for later inspection.
 
@@ -2030,11 +2089,7 @@ stage, is part of the default front-end to NClosEmacs.  The general
 idea is that rule bases are simple text files edited in standard Emacs
 buffers.  All major interactions with the expert system are designed
 to happen from within these buffers.  Hence all user commands are
-interactive Lisp functions usually invoked with the    
-{{{
-M-x
-}}}
-
+interactive Lisp functions usually invoked with the {{{M-x}}}
 prefix. Of course, some NClosEmacs specific buffers, such as the log
 buffer, might also be involved, or commands such as the Encyclopaedia
 may also work in any buffer, but the main idea is that major user
@@ -2050,6 +2105,7 @@ reflect the progress of the inference process.
 
 
 {{{
+
 (define-generic-mode 'nclose-mode
   '(";")
   '("add-to-kb")
@@ -2060,6 +2116,7 @@ reflect the progress of the inference process.
   '()
   "NClose-mode is a major mode for authoring and knowcessing rule bases."
 )
+
 }}}
 
 
@@ -2068,19 +2125,15 @@ definition keyword, and parses the rules source for hypothesis,
 selecting a font according to its status (under evaluation, known true
 or known false).
 
-Nclose mode is invoked with  
-
-{{{
-M-x nclose-mode
-}}}
-
-when in a
+Nclose mode is invoked with {{{M-x nclose-mode}}} when in a
 rule base text buffer.  It is also, in Emacs fashion, automatically
 set for a buffer if the first line of the file declares:
 
 
-{{{ 
+{{{
+
 ;; -*- mode: nclose -*-
+
 }}}
 
 
