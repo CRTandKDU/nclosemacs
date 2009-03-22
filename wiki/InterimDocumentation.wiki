@@ -1,4 +1,4 @@
-#summary Interim Documentation NClosEmacs 2.0
+#summary Interim Documentation NClosEmacs 2.2
 This document describes NClosEmacs, a tentative implementation of the
 NClose rules engine in ELisp for embedding expert system functionality
 in the Emacs environment.
