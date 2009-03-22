@@ -9,7 +9,7 @@ and Linux.
 
 == Downloading and Installing NClosEmacs ==
 A tarball is available for download at the Google code repository
-under the [http://code.google.code/p/nclosemacs] project header.  The archive contains ELisp
+under the [http://code.google.com/p/nclosemacs/downloads/list] project header.  The archive contains ELisp
 files, with the .el extension, compiled ELisp files, with the .elc extension, and an Emacs info file
 {{{nclosemacs.info}}}.  They are installed separately.
 
