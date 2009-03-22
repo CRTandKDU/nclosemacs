@@ -17,7 +17,7 @@ files, with the .el extension, compiled ELisp files, with the .elc extension, an
   * Move or untar all ELisp (.el and .elc) files in the newly created directory
   * In your {{{.emacs}}} file add the nclose directory to the load path Emacs will use by adding the following lines: 
   ** {{{(add-to-list 'load-path "/home/nclose")}}}
-  ** {{{(load-file "nclose-lib.el")}}}
+  ** {{{(load-library 'nclosemacs)}}}, this can alternatively be called interactively with {{{Alt-x load-library}}}
 
 This completes the basic installation of NClosEmacs to work with 
 Emacs or XEmacs, under Windows, Cygwin and Linux.
