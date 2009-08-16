@@ -1,3 +1,4 @@
+#summary The Machine Learning Extension for Emacs
 
 This document is the interim documentation for the _Machine Learning (ML)_
 extension for _NClosEmacs_, both available at the following URL:
