@@ -33,8 +33,7 @@ documentation provided in info, PDF, and HTML formats, in the same
 
 == Installing the NClosEmacs documentation ==
 The documentation is also provided as an info file to be installed
-directly in the Emacs info facility, invoked with {{{M-x
-info}}}.
+directly in the Emacs info facility, invoked with {{{M-x info}}}.
 
   * Locate the {{{dir}}} info directory file for your Emacs installation.  In Cygwin, for instance, it is usually found in the {{{/usr/share/info}}} directory.
   * Edit this file to insert the following line under the appropriate section:
