@@ -99,10 +99,6 @@ batches of experiments with the proposed learner.  The statistics
 produced by these batch functions are conveniently provided as gnuplot
 compatible files for further analysis.
 
-The current release uses no pruning, nor does it postprocesses the
-induced rule set.
-
-
 == Using nclosemacs-pfoil ==
 
 Provided the dataset files is in Emacs' load-path the basic invocation
