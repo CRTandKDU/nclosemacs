@@ -2,7 +2,7 @@
 
 The installation of NClosEmacs, from version 2.0 and up, is a simple manual process of moving
 files to appropriate directories and loading the master
-{{{nclose-lib.el}}} ELisp file (once) from within Emacs.
+{{{nclosemacs.elc}}} ELisp library file from within Emacs.
 
 The quick instructions herein have been tested under Windows, Cygwin
 and Linux.
