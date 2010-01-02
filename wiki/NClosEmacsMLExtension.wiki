@@ -361,6 +361,140 @@ of examples seen (in average) but that the price is a similarly
 growing complexity of the rule set.  Note though that, on this
 dataset, less than 4 rules are enough for roughly a 80% correctness.
 
+== Using nclosemacs-irep ==
+NClosEmacs-IREP is a variation of the previous PFOIL-type machine learning algorithm which introduces early pruning of rules as they are grown into DNF.
+
+Previous remarks about datasets and their format do apply as well here.
+
+The major functions in the nclosemacs-irep module are:
+
+   *   {{{ml-grow-prune-DNF dataset grow-set prune-set &optional buffer}}} ::
+        This generic function grows a DNF (like in PFOIL) but uses a new subset, `prune-set', to prune a rule as soon as it is grown before it is added to the DNF under construction.  The pruning pass uses a scoring function, <code>*ml-prune-score-function*</code>, which can be redefined by the user if needed.
+
+
+   *   {{{*ml-prune-score-function* gr-size pr-size gr-cover pr-cover}}} ::
+        The global scoring function for the early pruning pass in the IREP implementation.  It expects 4 arguments: the number of examples in the growing (resp. pruning) subsets, namely `gr-size' and `pr-size', and the number of examples in the growing (resp. pruning) subsets covered by the rule, namely `gr-cover' and `pr-cover'.  The pruning pass is applied to a rule before it is added to the DNF under construction, and deletes a term that maximizes the global scoring function.
+
+
+The following sections expands on some examples of using IREP.
+
+=== Running nclosemacs-irep ===
+The default scoring function is defined in <code>nclosemacs-ml-prune.el</code> as suggested by Fürnkranz and Widmer.
+
+{{{
+(setq *ml-prune-score-function*
+  '(lambda (g-sizes p-sizes g-covers p-covers)
+     (/ (* 1.0 (+ (car p-covers) (- (cdr p-sizes) (cdr p-covers))))
+	(* 1.0 (+ (car p-sizes) (cdr p-sizes)))))
+  )
+}}}
+
+With this default setting, simple usage of the IREP algorithm is shown below:
+
+{{{
+(require 'nclosemacs-ml-irep)
+(require 'mushroom)
+
+(ml-irep-random-subset 'mushrooms 0.8 (get-buffer-create "*out*"))
+}}}
+
+The IREP calls operates on the mushrooms example from the UC Irvine repository, using a random fraction (here 0.8) of the dataset as growing and pruning subsets.  (It uses the <code>:DATA-PPRULE</code> pretty-printer defined with the dataset symbol to print out the result into the passed <code>*out*</code> buffer.)
+
+=== Measuring nclosemacs-irep ===
+It is interesting here to demonstrate the impact of a different choice for a scoring function in the ML performance.  In order to do so, we equip IREP with a correctness and a complexity measures -- both defined in the <code>nclosemacs-ml-irep.el</code> file.  They are the same as in the PFOIL instrumentation and, here again, may be customized.
+
+The batch function to run several IREP passes on the same dataset, with new random growing/pruning subsets each time is:
+
+     ml-irep-run-batch n dataset-symbol frac &optional trace-buffer ::
+        This function runs n iterations of IREP on the dataset with fraction `frac' of the examples used as growing/pruning subsets.  If a trace buffer is passed, the output is produced in gnuplot format.
+
+
+Using the default scoring function setting as before, the following code:
+
+{{{
+(ml-irep-run-batch 10 'mushrooms 0.75 (get-buffer-create "*out*"))
+}}}
+
+creates an output like this:
+
+{{{
+# Run	Correctness	DNF Size	Training
+0  	0.744		5  		2937 3156
+1  	0.789		6  		2937 3156
+2  	0.761		6  		2937 3156
+3  	0.761		6  		2937 3156
+4  	0.761		6  		2937 3156
+5  	0.062		7  		2937 3156
+6  	0.728		5  		2937 3156
+7  	0.863		4  		2937 3156
+8  	0.761		6  		2937 3156
+9  	0.062		7  		2937 3156
+#	0.629		5.8
+}}}
+
+using the <code>mushrooms</code> dataset as before.
+
+Basically, over a batch of 10 runs, the average correctness of the rules learned by IREP is 0.629, for an average complexity of 5.8 terms, close to 6.
+
+In broader experimentations with IREP, Cohen noted that the algorithm may be improved in many places.  The scoring function, in particular, could cause problems of convergence for very large datasets.  To cite: "the preferences encoded in this metric [Fürnkranz and Widmer default] are sometimes highly unintuitive."  Cohen proceeds to suggest another rule-value metric for pruning, which is easily implemented in nclosemacs-irep:
+
+{{{
+(setq *ml-prune-score-function*
+  '(lambda (g-sizes p-sizes g-covers p-covers)
+     (/ (* 1.0 (- (car p-covers) (cdr p-covers)))
+	(* 1.0 (+ (car p-covers) (cdr p-covers)))))
+  )
+}}}
+
+A re-run of the same batch call now produces the following output:
+
+{{{
+# Run	Correctness	DNF Size	Training
+0  	0.892		6  		2937 3156
+1  	0.131		3  		2937 3156
+2  	0.863		4  		2937 3156
+3  	0.863		4  		2937 3156
+4  	0.728		5  		2937 3156
+5  	0.761		6  		2937 3156
+6  	0.863		4  		2937 3156
+7  	0.863		4  		2937 3156
+8  	0.728		5  		2937 3156
+9  	0.789		6  		2937 3156
+#	0.748		4.7
+}}}
+
+where it is readily seen that the correctness is improved while the complexity is lowered.  This result is in the line of Cohen's experimental results.
+
+
+=== A final note on architecture ===
+The current implementation does not prune at the ruleset level.  Its architecture, however, has been setup to simplify the task of experimenting with pruning in machine learning.  Pruning is implemented using Emacs Lisp *advising functions* features, as post-processing of the rule growth function.
+
+The architecure defines a <code>pruning-layer</code> layer of advising functions to the main growth rules.  More specifically, a new generic function is introduced:
+
+    ml-grow-prune-rule desc gr-set pr-set &optional buffer ::
+      This generic function grows one rule on the passed growing/pruning subsets of the dataset designated by its descriptor.  It ignores the pruning set and call <code>ml-grow-rule</code> on the sole `gr-set' by default.
+
+
+This function, when called as is, performs a standard PFOIL growth as defined in nclosemacs-pfoil.  In IREP, however, this function is advised and the pruning layer is activated in the <code>nclosemacs-ml-irep.el</code> file:
+
+{{{
+(ml-pruning-enable-activate)
+}}}
+
+This triggers early pruning which is simply an advice that post-processes the above growth function:
+
+{{{
+(defadvice ml-grow-prune-rule 
+  (after pruning-layer (desc grow-set prune-set &optional trace))
+...
+}}}
+
+The advice effectively uses the `prune-set' argument to prune the rule passed as a result of the original call to <code>ml-grow-prune-rule</code>.
+
+This simple pattern may be reused to implement additional variants of the IREP algorithm -- such as additional pruning or rule-optimization of the whole DNF -- as additional advices in the pruning layer.
+
+
+
 
 
 
