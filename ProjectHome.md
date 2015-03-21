@@ -1,0 +1,1 @@
+An experimental (and nostalgic) implementation of NClose in ELisp for Emacs.

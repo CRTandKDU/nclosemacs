@@ -1,0 +1,519 @@
+This document is the interim documentation for the _Machine Learning (ML)_
+extension for _NClosEmacs_, both available at the following URL:
+
+[http://code.google.com/p/nclosemacs/](http://code.google.com/p/nclosemacs/).
+
+NClosEmacs extensions are, as much as the rule engine itself remains,
+highly experimental explorations of AI themes and ideas.  In this ML
+extension we are interested in investigating _rule induction_ for
+NClosEmacs, i.e. the generation of rules from the examination of
+patterns in data.  There is an abundant literature that documents the
+ML field in depth; the reader is referred to
+MachineLearning1-3 for a comprehensive introduction to
+the major ideas in Machine Learning.
+
+This extension is a collection of (tentative) induction algorithms
+which generate rule bases for inference or use with NClosEmacs.  It is
+intended--in time--to cover most of the basic induction ideas from
+inductive logic programming, tracing back to the seminal work of
+Quinlan and Cameron-Jones FOIL, and probabilistic models
+MLN in a production rules setting.
+
+# Installation #
+
+The zip file contains all source code (in ELisp) and simply needs to
+be unzipped in a directory in Emacs `load-path`.
+
+In order to run the knowledge bases produced by the extension
+programs, it is required to load the `nclosemacs` library
+and, as usual, evaluate the buffer containing the knowledge base file
+before invoking the standard `C-c S, V, K` (Suggest,
+Volunteer, Knowcess) commands while in _nclose_ major mode.
+
+
+# Learning Propositional Logic Rules #
+
+## Introduction and sources ##
+
+The proposed module learns _propositional logic_ rules from a training
+dataset of positive and negative examples.  The context is purposedly
+restricted to a so-called _attribute-based instance space_ where each
+example instance is determined by a set of attributes and their
+(ordinal) values.  Furthermore this is a _binary_ or one-class setting
+where examples are either positive or negative instances of a single
+class for which rules are to be learned.
+
+In this very specific setting, the learner is confronted with a
+sequence of instances.  All instances have the same attributes, the
+values of which completely determines the instance.  Each attribute
+range--its set of possible values--is discrete (no continuous
+attributes).
+
+Instances are either a positive example or a negative example of the
+class.  The learner should induce rules that cover as many positive
+examples as possible and fail on as many negative examples as
+possible.  There are several ways of refining this idea of coverage,
+each yielding a variant of the learning procedure.
+
+In these settings, rules are expressed as conjunctions
+of simple terms.  Terms are always of the form
+`attribute = value`.  This rule format explicitly maps to the LHS of
+NClosEmacs rules, where conditions are implicitly anded.  The learner
+induces a set of rules, i.e. a disjunction of such individual rules.  This
+set naturally maps to a collection of NClosEmacs rules pointing to the
+_same_ hypothesis.
+
+In this module, we draw from the original work on the IREP
+(_incremental reduced error pruning_) algorithm
+IREP1994 and subsequent developments by Cohen
+Cohen1995,Cohen1999.  (This choice for the module design
+was also inspired partly from Mooney Mooney1995.)
+
+In a few words, in IREP for rules the training set is split into a
+_growing set_ and a _pruning set_.  First an initial rule is formed by
+adding terms until the growing set is covered.  Which terms are added
+and when to stop adding terms constitute the _selection_ and _stopping_
+heuristics.  As noted by the previously mentioned authors, there are
+many variants of IREP as many such heuristics may be chosen and
+combined.  The rule, which is likely to overfit the growing set, is
+then repeatedly simplified by applying pruning operators, according to
+a _pruning_ heuristics: at each stage of simplification the pruning
+operator is chosen that yields the greatest error reduction on the
+pruning set.  Pruning stops when no improvement is brought to the
+error rate.
+
+The nclosemacs-pfoil leverages improvements on IREP discussed by Cohen
+in Cohen1995.  In particular proper structure has been
+added to study variants of the selection, pruning and stopping
+heuristics--either by advising of substituting a few ELisp functions
+in the code.  In addition, an optional third step allows
+postprocessing of the whole ruleset for further optimization.  This
+module may be viewed as a _framework_ for studying propositional logic
+learning (for NClosEmacs) which can be extended or specialized to new
+experimental research.
+
+In this vein, the default module also offers several functions to run
+batches of experiments with the proposed learner.  The statistics
+produced by these batch functions are conveniently provided as gnuplot
+compatible files for further analysis.
+
+## Using nclosemacs-pfoil ##
+
+Provided the dataset files is in Emacs' load-path the basic invocation
+of the learner provided by this module looks like:
+
+
+```
+
+(defun do-mushroom (tkb-file)
+  (require 'nclosemacs-ml-pfoil)
+  (require 'mushroom)
+  (ml-read-load-dataset 'mushrooms)
+  (ml-pfoil-random-subset-nclosemacs 'mushrooms 0.75
+				     (get-buffer-create tkb-file))
+
+ )
+
+(do-mushroom "mushrooms.tkb")
+
+```
+
+
+We use the _mushrooms_ dataset from UC Irvine's Machine Learning
+repository and create a simple function to induce rules from said
+data.
+
+The first step is to load the learner we are planning to use. It is
+provided as a _feature_ by the ML extension (in the Elisp sense).  Then
+the dataset description is loaded--this simply defines the dataset
+symbol, here `'mushrooms`, which contains the ELisp
+functions required to handle the specific dataset file.
+
+Once the dataset is effectively loaded with the call to
+`ml-read-load-dataset`, the learner may be called on the
+dataset as many times as wished to produce knowledge bases in the
+passed buffer/file.
+
+In this module the learner is called through the
+`ml-pfoil-random-subset-nclosemacs` which uses a random
+subset of the dataset as training set. (How much, between 0 and 1, of
+the dataset is used constitutes the 2nd argument: here we use 75% of
+the dataset as a training set.)
+
+### Datasets ###
+
+The nclosemacs-pfoil module works from a dataset.  Examples of such
+datasets are provided in the release distribution.  They are derived
+from the UC Irvine
+[Machine Learning Repository](http://archive.ics.uci.edu/ml/datasets.html) from which other examples may be
+downloaded for experimenting UCIrvine.  The current
+release contains the _promoters_ and _mushrooms_ datasets, respectively
+the `promoters.data` and `mushroom.data` files.
+
+In order to be appropriately processed by the learner, a dataset
+requires several ELisp functions, for instance to parse the attributes
+and their values from each example in the dataset file, to print rules
+in NClosEmacs format, and various ancillary tasks.  This
+dataset-specific code is attached to a _dataset symbol_ which property
+list points to the required ELisp functions and constants.  By
+convention this is stored in the `dataset-symbol.el` file
+(and compiled for efficiency).  Hence the release examples are
+described in `promoters.el` and `mushroom.el`.
+
+The property list of the dataset symbol usually lists the following
+properties:
+
+  * `:DATA-FILE' The name of the dataset file
+
+  * `:DATA-REGEXPS' A list of (ELisp) regular expressions used to parse
+one instance from the dataset file.  Each regexp in the list is
+successively applied to each line read from the dataset file.  This
+must exactly match the instance line description.  By convention the
+first character, `+' or `-, indicates whether the instance is a
+positive or a negative example of the class to be learned.
+
+  * `:DATA-READHOOK' An ELisp function which is called once a line is
+completely parsed using the previously described regexps.  This
+function is passed one argument, the list of strings that matched the
+list of regexps.  It should return a list of values for the read
+instance attributes.
+
+  * `:DATA-DESC' This form describes the attributes values.  Its CAR
+describes a range of attribute indices--usually 1 to _last_--with
+the following format: `(:NATT-RANGE p q)`.  Its CDR should
+be a function which, when passed an integer in the range described,
+returns the list of possible values for the attribute--its range.
+
+  * The pretty-print functions which are used for output.
+
+`:DATA-PPATTR' A function to pretty-print the name of attribute
+which index is passed as argument.
+
+`:DATA-PPRULE' A function to pretty-print a rule.  It receives as an
+argument a list of pair `(attr-index . value)`
+representing the rule CNF.
+
+`:DATA-NCLOSEMACS-PPRULE' A function to print a NClosEmacs rule for
+the argument rule passed in its CNF form.
+
+`:DATA-NCLOSEMACS-PPDICTIONARY' A function, exclusively used in the
+NClosEmacs context, to print an optional prologue before the text of
+the rules itself.  This is often used to setup _dictionary_ rules
+mentioning all possible values for each attribute in the knowledge
+base.  This is helpful to fill in the option choices when running a
+NClosEmacs session.
+
+Usually the dataset symbol, its property list and all its related
+ELisp function end up neatly packaged in an ELisp
+`dataset-symbol.el` file which provides the
+`dataset-symbol` feature. (See `promoters.el`
+and `mushromm.el` for example.)
+
+A dataset is loaded by (i) requiring its associated feature, then (ii)
+invoking the standard `ml-read-load-dataset` function on
+its dataset symbol.  Hence, for instance, to use the _promoters_ dataset
+provided in this release:
+
+
+```
+
+  (require 'promoters)
+  (ml-read-load-dataset 'promoters)
+
+```
+
+
+Note that the `require` does not reload the bytecode if it
+is already in memory.  The `ml-read-load-dataset` needs to
+be done once, the dataset remaining available in memory
+afterwards. (Actually the dataset itself is automatically loaded in a
+different buffer, and while present remains available to the learner.)
+
+Additional attributes may be required to properly describe and handle
+more complex datasets, or to print specialized NClosEmacs
+formats. (Here, this module does not use the ontology facilities of
+NClosEmacs and does not generate classes, instances or properties in
+the knowledge base.  Interestingly, a full-fledged FOIL-like
+algorithm which produces first order logic formulae would also need proper
+ontology to be produced for NClosEmacs before outputing rules: the
+outline of a new module for this ML extension!)
+
+
+### Rules induction ###
+
+The main invocation of the propositional logic learner in this module
+is the function `ml-pfoil-random-subset-nclosemacs`.  This
+applies the learner on a training set randomly extracted from the
+dataset.  It expects three arguments:
+
+  * `(ml-pfoil-random-subset-nclosemacs dataset-symbol frac tkb-file)`
+
+`dataset-symbol' The dataset to operate on. For instance
+`'promoters` or `'mushrooms`.
+
+`frac' A float between 0 and 1 specifying the relative size of the
+training set.  For instance 0.7 for 70% of the dataset.
+
+`tkb-file' The file name for outputing the knowledge base.
+
+  * The return values holds some statistics about the learning session
+and the rule set in DNF of CNF form.  It is a list containing:
+
+The size of the training set used as the pair
+`( + . -)` of numbers of positive and negative examples.
+
+The size of the rule set coverage on the training set in the same
+format.  If `(p . n)` is the size of the training set,
+this coverage is at best `(p . 0)` showing all positive
+examples covered and none of the negative.
+
+The size of the rule set coverage on the whole dataset in the same
+format as before.  This is where there might be some discrepancy,
+and an error rate may show.
+
+Finally the rule set itself as a list of CNFs.  Each CNF is a list
+of pairs `(attr-index . value)` representing its terms.
+
+
+The produced knowledge base file is directly usable in NClosEmacs.
+Provided the NClosEmacs library has been previously loaded, it is a
+matter of invoking `M-x eval-buffer` to start the inference
+engine on the induced rule set.
+
+
+### Measuring and experimenting ###
+
+This module also provides a couple of function to run batch learning
+sessions on the same dataset.  These are useful when studying the
+statistics produced by the learner or one of its many variants.
+
+Here we are no longer interested in the generated rule set itself but
+rather in the behavior of the learner itself, and its coverage and
+error rate.
+
+  * `(ml-pfoil-run-batch n dataset-symbol frac trace-buffer)` runs the learner n times on the same dataset
+and collect statistics in the trace buffer, finally returning the
+average _correctness_ of the runs, the average size of the rule set
+and the size of the training sets.
+
+The trace buffer displays the same information for each individual
+run.  If saved as is, the trace may be loaded directly into gnuplot
+for further analysis and charting.
+
+The correctness is defined in the function
+`ml-pfoil-correctness` as (p-n)/(p+n) where p and n are
+the number of positive (resp. negative) examples _matched_ by the
+rule set. (See 
+
+&lt;cite&gt;
+
+Cohen1995
+
+&lt;/cite&gt;
+
+.)
+
+The _complexity_ of the rule set is defined in the function
+`ml-pfoil-complexity`  as the simply the number of rules
+in the set.
+
+Both functions may be advised or changed to explore variants of the
+algorithms with interesting side-effects.
+
+  * `(ml-pfoil-run-experiment n dataset-symbol trace-buffer)` is an even higher-level measurement function
+which runs n batches (all of size 10) on the same dataset symbol,
+increasing the fraction of examples uses in the training set with
+each batch--from 1/n to 1.  The learner is run 10\*n times on an
+increasing proportion of the dataset.
+
+The function returns nil and produces output in gnuplot format in
+the passed trace buffer.
+
+A typical experiment run like:
+
+```
+
+(ml-pfoil-run-experiment 6 'promoters (get-buffer-create "*out*"))
+
+```
+
+for instance, would produce the following statistics over 60 runs of
+the learner:
+
+
+```
+
+# plot "filename" using 1:4 with lines
+# to plot correctness
+# plot "filename" using 1:5 with lines
+# to plot complexity as length of DNF
+# Training	Fraction	Correctness	Length
+  8   8		0.167		0.472		1.9
+ 17  17		0.333		0.651		2.6
+ 26  26		0.500		0.793		3.6
+ 35  35		0.667		0.864		4.3
+ 44  44		0.833		0.918		5.7
+
+```
+
+
+The first and second column shows the training set size expressed as
+the numbers of, respectively, positive and negative examples.  The
+third one tells how much of the full dataset was used.  Column 4 and 5
+display (average) correctness and complexity for each batch of 10 runs.
+
+This table simply tells us that the correctness grows with the number
+of examples seen (in average) but that the price is a similarly
+growing complexity of the rule set.  Note though that, on this
+dataset, less than 4 rules are enough for roughly a 80% correctness.
+
+## Using nclosemacs-irep ##
+NClosEmacs-IREP is a variation of the previous PFOIL-type machine learning algorithm which introduces early pruning of rules as they are grown into DNF.
+
+Previous remarks about datasets and their format do apply as well here.
+
+The major functions in the nclosemacs-irep module are:
+
+  * `ml-grow-prune-DNF dataset grow-set prune-set &optional buffer` ::
+> > This generic function grows a DNF (like in PFOIL) but uses a new subset, `prune-set', to prune a rule as soon as it is grown before it is added to the DNF under construction.  The pruning pass uses a scoring function, ```
+*ml-prune-score-function*```, which can be redefined by the user if needed.
+
+
+  * `*ml-prune-score-function* gr-size pr-size gr-cover pr-cover` ::
+> > The global scoring function for the early pruning pass in the IREP implementation.  It expects 4 arguments: the number of examples in the growing (resp. pruning) subsets, namely `gr-size' and `pr-size', and the number of examples in the growing (resp. pruning) subsets covered by the rule, namely `gr-cover' and `pr-cover'.  The pruning pass is applied to a rule before it is added to the DNF under construction, and deletes a term that maximizes the global scoring function.
+
+
+The following sections expands on some examples of using IREP.
+
+### Running nclosemacs-irep ###
+The default scoring function is defined in ```
+nclosemacs-ml-prune.el``` as suggested by Fürnkranz and Widmer.
+
+```
+(setq *ml-prune-score-function*
+  '(lambda (g-sizes p-sizes g-covers p-covers)
+     (/ (* 1.0 (+ (car p-covers) (- (cdr p-sizes) (cdr p-covers))))
+	(* 1.0 (+ (car p-sizes) (cdr p-sizes)))))
+  )
+```
+
+With this default setting, simple usage of the IREP algorithm is shown below:
+
+```
+(require 'nclosemacs-ml-irep)
+(require 'mushroom)
+
+(ml-irep-random-subset 'mushrooms 0.8 (get-buffer-create "*out*"))
+```
+
+The IREP calls operates on the mushrooms example from the UC Irvine repository, using a random fraction (here 0.8) of the dataset as growing and pruning subsets.  (It uses the ```
+:DATA-PPRULE``` pretty-printer defined with the dataset symbol to print out the result into the passed ```
+*out*``` buffer.)
+
+### Measuring nclosemacs-irep ###
+It is interesting here to demonstrate the impact of a different choice for a scoring function in the ML performance.  In order to do so, we equip IREP with a correctness and a complexity measures -- both defined in the ```
+nclosemacs-ml-irep.el``` file.  They are the same as in the PFOIL instrumentation and, here again, may be customized.
+
+The batch function to run several IREP passes on the same dataset, with new random growing/pruning subsets each time is:
+
+
+> ml-irep-run-batch n dataset-symbol frac &optional trace-buffer ::
+> > This function runs n iterations of IREP on the dataset with fraction `frac' of the examples used as growing/pruning subsets.  If a trace buffer is passed, the output is produced in gnuplot format.
+
+
+Using the default scoring function setting as before, the following code:
+
+```
+(ml-irep-run-batch 10 'mushrooms 0.75 (get-buffer-create "*out*"))
+```
+
+creates an output like this:
+
+```
+# Run	Correctness	DNF Size	Training
+0  	0.744		5  		2937 3156
+1  	0.789		6  		2937 3156
+2  	0.761		6  		2937 3156
+3  	0.761		6  		2937 3156
+4  	0.761		6  		2937 3156
+5  	0.062		7  		2937 3156
+6  	0.728		5  		2937 3156
+7  	0.863		4  		2937 3156
+8  	0.761		6  		2937 3156
+9  	0.062		7  		2937 3156
+#	0.629		5.8
+```
+
+using the ```
+mushrooms``` dataset as before.
+
+Basically, over a batch of 10 runs, the average correctness of the rules learned by IREP is 0.629, for an average complexity of 5.8 terms, close to 6.
+
+In broader experimentations with IREP, Cohen noted that the algorithm may be improved in many places.  The scoring function, in particular, could cause problems of convergence for very large datasets.  To cite: "the preferences encoded in this metric [Fürnkranz and Widmer default] are sometimes highly unintuitive."  Cohen proceeds to suggest another rule-value metric for pruning, which is easily implemented in nclosemacs-irep:
+
+```
+(setq *ml-prune-score-function*
+  '(lambda (g-sizes p-sizes g-covers p-covers)
+     (/ (* 1.0 (- (car p-covers) (cdr p-covers)))
+	(* 1.0 (+ (car p-covers) (cdr p-covers)))))
+  )
+```
+
+A re-run of the same batch call now produces the following output:
+
+```
+# Run	Correctness	DNF Size	Training
+0  	0.892		6  		2937 3156
+1  	0.131		3  		2937 3156
+2  	0.863		4  		2937 3156
+3  	0.863		4  		2937 3156
+4  	0.728		5  		2937 3156
+5  	0.761		6  		2937 3156
+6  	0.863		4  		2937 3156
+7  	0.863		4  		2937 3156
+8  	0.728		5  		2937 3156
+9  	0.789		6  		2937 3156
+#	0.748		4.7
+```
+
+where it is readily seen that the correctness is improved while the complexity is lowered.  This result is in the line of Cohen's experimental results.
+
+
+### A final note on architecture ###
+The current implementation does not prune at the ruleset level.  Its architecture, however, has been setup to simplify the task of experimenting with pruning in machine learning.  Pruning is implemented using Emacs Lisp **advising functions** features, as post-processing of the rule growth function.
+
+The architecure defines a ```
+pruning-layer``` layer of advising functions to the main growth rules.  More specifically, a new generic function is introduced:
+
+
+> ml-grow-prune-rule desc gr-set pr-set &optional buffer ::
+> > This generic function grows one rule on the passed growing/pruning subsets of the dataset designated by its descriptor.  It ignores the pruning set and call ```
+ml-grow-rule``` on the sole `gr-set' by default.
+
+
+This function, when called as is, performs a standard PFOIL growth as defined in nclosemacs-pfoil.  In IREP, however, this function is advised and the pruning layer is activated in the ```
+nclosemacs-ml-irep.el``` file:
+
+```
+(ml-pruning-enable-activate)
+```
+
+This triggers early pruning which is simply an advice that post-processes the above growth function:
+
+```
+(defadvice ml-grow-prune-rule 
+  (after pruning-layer (desc grow-set prune-set &optional trace))
+...
+```
+
+The advice effectively uses the `prune-set' argument to prune the rule passed as a result of the original call to ```
+ml-grow-prune-rule```.
+
+This simple pattern may be reused to implement additional variants of the IREP algorithm -- such as additional pruning or rule-optimization of the whole DNF -- as additional advices in the pruning layer.
+
+
+
+
+
+
+#

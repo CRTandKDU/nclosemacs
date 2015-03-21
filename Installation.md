@@ -1,0 +1,50 @@
+The installation of NClosEmacs, from version 2.0 and up, is a simple manual process of moving
+files to appropriate directories and loading the master
+`nclosemacs.elc` ELisp library file from within Emacs.
+
+The quick instructions herein have been tested under Windows, Cygwin
+and Linux.
+
+## Downloading and Installing NClosEmacs ##
+A tarball is available for download at the Google code repository
+under the http://code.google.com/p/nclosemacs/downloads/list project header.  The archive contains ELisp
+files, with the .el extension, compiled ELisp files, with the .elc extension, and an Emacs info file
+`nclosemacs.info`.  They are installed separately.
+
+  * Create a directory to contain the ELisp files (as well as some of the rule base example files provided in the archive), say `/home/nclose`.
+  * Move or untar all ELisp (.el and .elc) files in the newly created directory
+  * In your `.emacs` file add the nclose directory to the load path Emacs will use by adding the following lines:
+  * `(add-to-list 'load-path "/home/nclose")`
+  * `(load-library 'nclosemacs)`, this can alternatively be called interactively with `M-x load-library`
+
+This completes the basic installation of NClosEmacs to work with
+Emacs or XEmacs, under Windows, Cygwin and Linux.
+
+Rule bases are edited as text files in standard
+Emacs buffers and loaded in memory--once the NClose engine itself has
+been loaded--by simply evaluating the buffer with the usual command
+`M-x eval-current-buffer`.
+
+NClosEmacs' manual and user interface are described in the
+documentation provided in info, PDF, and HTML formats, in the same
+`release` directory.
+
+## Installing the NClosEmacs documentation ##
+The documentation is also provided as an info file to be installed
+directly in the Emacs info facility, invoked with `M-x info`.
+
+  * Locate the `dir` info directory file for your Emacs installation.  In Cygwin, for instance, it is usually found in the `/usr/share/info` directory.
+  * Edit this file to insert the following line under the appropriate section:
+```
+ * NClose: (/home/nclose/nclosemacs). An expert system for Emacs.
+```
+with the proper location of the `nclosemacs.info` file in parentheses.
+
+The documentation then becomes available as a standard part of the
+info system in Emacs.
+
+## Important Information ##
+NClosEmacs is released under the GNU GPL v3, the text of which is
+available in this archive as `gpl-3.0.txt`.
+
+NClosEmacs has been tested with Emacs 21-3 under Windows and Cygwin, with Emacs 22.2 under Windows, and with XEmacs 21-4 under Cygwin.
